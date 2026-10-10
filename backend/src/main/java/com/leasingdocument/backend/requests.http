@@ -1,0 +1,15 @@
+POST http://localhost:8080/api/documents
+Content-Type: application/json
+
+{
+  "customerId": 1,
+  "agentId": 1,
+  "documentTypeId": 1,
+  "fileName": "test-document.jpg",
+  "filePath": "test/test-document.jpg",
+  "captureLocation": "Colombo",
+  "imageQuality": "GOOD",
+  "captureStatus": "CAPTURED",
+  "verificationStatus": "PENDING",
+  "status": "ACTIVE"
+}

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/documentTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Document"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/documentStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Encrypted Document"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:id="@+id/documentDate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Captured: --"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:layout_marginBottom="15dp" />
+
+    <ImageView
+        android:id="@+id/documentImage"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:contentDescription="Decrypted document image" />
+
+    <Button
+        android:id="@+id/viewerBackButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Back"
+        android:layout_marginTop="15dp" />
+
+</LinearLayout>

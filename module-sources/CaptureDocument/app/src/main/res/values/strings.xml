@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">SecureDocumentCapture3</string>
+
+    <string name="select_document_type">Select Document Type</string>
+    <string name="national_identity_card">National Identity Card</string>
+    <string name="driving_licence">Driving Licence</string>
+    <string name="salary_slip">Salary Slip</string>
+    <string name="bank_statement">Bank Statement</string>
+    <string name="utility_bill">Utility Bill</string>
+    <string name="other_certificate">Other Certificate</string>
+    <string name="continue_text">Continue</string>
+
+</resources>

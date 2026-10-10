@@ -1,0 +1,32 @@
+package com.leasingdocument.app.network
+
+data class Document(
+    val documentId: Long?,
+    val customerId: Long?,
+    val agentId: Long?,
+    val deviceId: Long?,
+    val documentTypeId: Long?,
+    val fileName: String?,
+    val filePath: String?,
+    val captureDateTime: String?,
+    val captureLocation: String?,
+    val captureLatitude: Double?,
+    val captureLongitude: Double?,
+    val imageQuality: String?,
+    val imageWidth: Int?,
+    val imageHeight: Int?,
+    val blurScore: Double?,
+    val brightnessScore: Double?,
+    val blurPassed: Boolean?,
+    val brightnessPassed: Boolean?,
+    val resolutionPassed: Boolean?,
+    val qualityStatus: String?,
+    val captureSource: String?,
+    val mimeType: String?,
+    val fileSizeBytes: Long?,
+    val captureStatus: String?,
+    val processingStatus: String?,
+    val uploadedAt: String?,
+    val verificationStatus: String?,
+    val status: String?
+)

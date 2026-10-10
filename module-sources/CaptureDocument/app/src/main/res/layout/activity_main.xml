@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="24dp"
+
+    tools:context=".MainActivity">
+
+
+    <!-- App Title -->
+
+    <TextView
+        android:id="@+id/appTitle"
+
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+
+        android:text="Secure Document Capture"
+        android:textSize="26sp"
+        android:textStyle="bold"
+
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+
+        android:layout_marginTop="100dp" />
+
+
+    <!-- Description -->
+
+    <TextView
+        android:id="@+id/appDescription"
+
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+
+        android:text="Securely capture and store important documents."
+
+        android:textSize="16sp"
+        android:gravity="center"
+
+        android:layout_marginTop="15dp"
+
+        app:layout_constraintTop_toBottomOf="@id/appTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+
+    <!-- Capture Document -->
+
+    <Button
+        android:id="@+id/captureDocumentButton"
+
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+
+        android:text="Capture Document"
+        android:textSize="17sp"
+
+        android:layout_marginTop="45dp"
+
+        app:layout_constraintTop_toBottomOf="@id/appDescription"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+
+    <!-- Admin Login -->
+
+    <Button
+        android:id="@+id/adminLoginButton"
+
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+
+        android:text="Admin Login"
+        android:textSize="17sp"
+
+        android:layout_marginTop="20dp"
+
+        app:layout_constraintTop_toBottomOf="@id/captureDocumentButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

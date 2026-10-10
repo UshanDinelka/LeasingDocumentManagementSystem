@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/select_document_type"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_gravity="center"
+        android:layout_marginBottom="20dp" />
+
+    <RadioGroup
+        android:id="@+id/documentRadioGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <RadioButton
+            android:id="@+id/nicRadioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/national_identity_card"
+            android:textSize="18sp"
+            android:checked="true" />
+
+        <RadioButton
+            android:id="@+id/licenseRadioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/driving_licence"
+            android:textSize="18sp" />
+
+        <RadioButton
+            android:id="@+id/salarySlipRadioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/salary_slip"
+            android:textSize="18sp" />
+
+        <RadioButton
+            android:id="@+id/bankStatementRadioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/bank_statement"
+            android:textSize="18sp" />
+
+        <RadioButton
+            android:id="@+id/utilityBillRadioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/utility_bill"
+            android:textSize="18sp" />
+
+        <RadioButton
+            android:id="@+id/certificateRadioButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/other_certificate"
+            android:textSize="18sp" />
+
+    </RadioGroup>
+
+    <Button
+        android:id="@+id/continueButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/continue_text"
+        android:layout_marginTop="24dp" />
+
+</LinearLayout>

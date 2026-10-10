@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- ========================= -->
+    <!-- LIVE CAMERA PREVIEW -->
+    <!-- ========================= -->
+
+    <TextureView
+        android:id="@+id/cameraPreview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+
+    <!-- ========================= -->
+    <!-- DOCUMENT FRAME -->
+    <!-- ========================= -->
+
+    <View
+        android:id="@+id/documentFrame"
+        android:layout_width="340dp"
+        android:layout_height="480dp"
+        android:layout_gravity="center"
+        android:background="@drawable/document_border" />
+
+
+    <!-- ========================= -->
+    <!-- BACK BUTTON -->
+    <!-- ========================= -->
+
+    <Button
+        android:id="@+id/backButton"
+        android:layout_width="55dp"
+        android:layout_height="55dp"
+        android:layout_margin="16dp"
+        android:text="←"
+        android:textSize="24sp" />
+
+
+    <!-- ========================= -->
+    <!-- FLASH BUTTON -->
+    <!-- ========================= -->
+
+    <Button
+        android:id="@+id/flashButton"
+        android:layout_width="55dp"
+        android:layout_height="55dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="16dp"
+        android:text="⚡"
+        android:textSize="20sp" />
+
+
+    <!-- ========================= -->
+    <!-- CAMERA CONTROLS -->
+    <!-- ========================= -->
+
+    <LinearLayout
+        android:id="@+id/cameraControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/instructionsText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Place the entire document inside the frame.\nAvoid shadows and reflections.\nKeep the camera steady."
+            android:textSize="16sp"
+            android:textColor="@android:color/white"
+            android:gravity="center"
+            android:padding="10dp" />
+
+        <Button
+            android:id="@+id/captureButton"
+            android:layout_width="180dp"
+            android:layout_height="wrap_content"
+            android:text="Capture"
+            android:textSize="18sp"
+            android:layout_marginTop="10dp" />
+
+    </LinearLayout>
+
+
+    <!-- ========================= -->
+    <!-- PHOTO REVIEW SCREEN -->
+    <!-- ========================= -->
+
+    <LinearLayout
+        android:id="@+id/photoReview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="20dp"
+        android:background="@android:color/black"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Review Document"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="15dp" />
+
+        <ImageView
+            android:id="@+id/capturedImage"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter"
+            android:contentDescription="Captured document" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Check that the document is clear and completely visible."
+            android:textSize="14sp"
+            android:textColor="@android:color/white"
+            android:gravity="center"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="5dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:padding="10dp">
+
+            <Button
+                android:id="@+id/retakeButton"
+                android:layout_width="140dp"
+                android:layout_height="wrap_content"
+                android:text="Retake"
+                android:layout_margin="8dp" />
+
+            <Button
+                android:id="@+id/usePhotoButton"
+                android:layout_width="140dp"
+                android:layout_height="wrap_content"
+                android:text="Use Photo"
+                android:layout_margin="8dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+
+    <!-- ========================= -->
+    <!-- SECURE STORAGE SUCCESS -->
+    <!-- ========================= -->
+
+    <LinearLayout
+        android:id="@+id/storageSuccess"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="30dp"
+        android:background="@android:color/black"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✓"
+            android:textSize="60sp"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="20dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Document Stored Successfully"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/storedDocumentType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Document"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:gravity="center"
+            android:layout_marginTop="10dp" />
+
+        <TextView
+            android:id="@+id/storageMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Your document has been securely encrypted and stored."
+            android:textSize="16sp"
+            android:gravity="center"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="15dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Your document has been encrypted and securely stored."
+            android:textSize="16sp"
+            android:textColor="@android:color/white"
+            android:gravity="center"
+            android:layout_marginTop="15dp"
+            android:layout_marginBottom="35dp" />
+
+        <Button
+            android:id="@+id/addAnotherButton"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:text="Add Another"
+            android:textSize="17sp" />
+
+        <Button
+            android:id="@+id/viewDocumentsButton"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:text="View Secure Documents"
+            android:textSize="17sp"
+            android:layout_marginTop="12dp" />
+
+        <Button
+            android:id="@+id/exitButton"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:text="Exit"
+            android:textSize="17sp"
+            android:layout_marginTop="12dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

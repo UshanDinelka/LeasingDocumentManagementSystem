@@ -1,0 +1,113 @@
+{
+  "version": "document-analysis-4",
+  "documents": {
+    "NIC": {
+      "template": "nic_template_v1.jpg",
+      "titlePatterns": [
+        "NATIONAL\\s+IDENTITY\\s+CARD"
+      ],
+      "staticRegions": [
+        [
+          0.06,
+          0.03,
+          0.94,
+          0.215
+        ]
+      ],
+      "fieldPolicy": "NIC",
+      "analysisBounds": [
+        0.095,
+        0.065,
+        0.95,
+        0.935
+      ]
+    },
+    "DRIVING_LICENCE": {
+      "template": "driving_licence_template_v1.jpg",
+      "titlePatterns": [
+        "DRIVING\\s+LICEN[CS]E"
+      ],
+      "staticRegions": [
+        [
+          0.055,
+          0.03,
+          0.96,
+          0.175
+        ]
+      ],
+      "fieldPolicy": "DRIVING_LICENCE",
+      "analysisBounds": [
+        0.035,
+        0.035,
+        0.95,
+        0.92
+      ]
+    },
+    "BANK_STATEMENT": {
+      "template": "bank_statement_template_v1.jpg",
+      "titlePatterns": [
+        "TRANSACTION\\s+HISTORY",
+        "BANK\\s+STATEMENT",
+        "STATEMENT\\s+OF\\s+ACCOUNT"
+      ],
+      "staticRegions": [
+        [
+          0.025,
+          0.04,
+          0.97,
+          0.14
+        ],
+        [
+          0.03,
+          0.285,
+          0.97,
+          0.32
+        ]
+      ],
+      "fieldPolicy": "FINANCIAL"
+    },
+    "BUSINESS_REGISTRATION": {
+      "template": "business_registration_template_v1.jpg",
+      "titlePatterns": [
+        "CERTIFICATE\\s+OF\\s+INCORPORATION",
+        "BUSINESS\\s+REGISTRATION"
+      ],
+      "staticRegions": [
+        [
+          0.15,
+          0.04,
+          0.89,
+          0.245
+        ],
+        [
+          0.12,
+          0.34,
+          0.9,
+          0.39
+        ]
+      ],
+      "fieldPolicy": "REGISTRATION"
+    },
+    "VEHICLE_CR_BOOK": {
+      "template": "cr_book_template_v1.jpg",
+      "titlePatterns": [
+        "CERTIFICATE\\s+OF\\s+REGISTRATION\\s+OF\\s+MOTOR\\s+VEHICLE"
+      ],
+      "staticRegions": [
+        [
+          0.1,
+          0.072,
+          0.87,
+          0.13
+        ],
+        [
+          0.07,
+          0.91,
+          0.97,
+          0.982
+        ]
+      ],
+      "fieldPolicy": "VEHICLE"
+    }
+  }
+}
