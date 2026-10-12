@@ -1922,4 +1922,3 @@ fun LoginScreen(
         }
     }
 }
-}
