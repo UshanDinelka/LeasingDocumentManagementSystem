@@ -10,39 +10,58 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    /*
-     * Physical Android phone -> Windows computer running Spring Boot.
-     *
-     * Current Windows Wi-Fi IPv4:
-     * 10.149.82.89
-     *
-     * Phone and computer must be connected to the same network.
-     */
-    private const val BASE_URL = "http://10.149.82.89:8080/"
+    // =========================================================
+    // BASE URL
+    // =========================================================
+    //
+    // Android Emulator -> Windows PC localhost
+    //
+    // 10.0.2.2 is the special host address used by the
+    // Android Emulator to access services running on the PC.
+    //
+    // Spring Boot backend:
+    // http://localhost:8080
+    //
+    // Android Emulator:
+    // http://10.0.2.2:8080/
+    //
+    // =========================================================
+
+    private const val BASE_URL =
+        "http://10.0.2.2:8080/"
+
 
     // =========================================================
     // AUTHORIZATION INTERCEPTOR
     // =========================================================
 
-    private val authInterceptor = Interceptor { chain ->
+    private val authInterceptor =
+        Interceptor { chain ->
 
-        val originalRequest = chain.request()
+            val originalRequest =
+                chain.request()
 
-        val requestBuilder = originalRequest.newBuilder()
+            val requestBuilder =
+                originalRequest
+                    .newBuilder()
 
-        AuthSession.token
-            ?.takeIf { it.isNotBlank() }
-            ?.let { token ->
-                requestBuilder.header(
-                    "Authorization",
-                    "Bearer $token"
-                )
-            }
+            AuthSession.token
+                ?.takeIf {
+                    it.isNotBlank()
+                }
+                ?.let { token ->
 
-        chain.proceed(
-            requestBuilder.build()
-        )
-    }
+                    requestBuilder.header(
+                        "Authorization",
+                        "Bearer $token"
+                    )
+                }
+
+            chain.proceed(
+                requestBuilder.build()
+            )
+        }
+
 
     // =========================================================
     // HTTP LOGGING
@@ -51,43 +70,94 @@ object RetrofitClient {
     private val loggingInterceptor =
         HttpLoggingInterceptor().apply {
 
-            redactHeader("Authorization")
+            redactHeader(
+                "Authorization"
+            )
 
-            level = HttpLoggingInterceptor.Level.BASIC
+            level =
+                HttpLoggingInterceptor
+                    .Level
+                    .BASIC
         }
+
 
     // =========================================================
     // OKHTTP CLIENT
     // =========================================================
 
-    private val client: OkHttpClient by lazy {
+    private val client:
+            OkHttpClient by lazy {
 
-        OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            .readTimeout(240, TimeUnit.SECONDS)
-            .callTimeout(260, TimeUnit.SECONDS)
+        OkHttpClient
+            .Builder()
+
+            .addInterceptor(
+                authInterceptor
+            )
+
+            .readTimeout(
+                240,
+                TimeUnit.SECONDS
+            )
+
+            .connectTimeout(
+                30,
+                TimeUnit.SECONDS
+            )
+
+            .writeTimeout(
+                240,
+                TimeUnit.SECONDS
+            )
+
+            .callTimeout(
+                260,
+                TimeUnit.SECONDS
+            )
+
             .apply {
 
-                if (BuildConfig.DEBUG) {
-                    addInterceptor(loggingInterceptor)
+                if (
+                    BuildConfig.DEBUG
+                ) {
+
+                    addInterceptor(
+                        loggingInterceptor
+                    )
                 }
             }
+
             .build()
     }
+
 
     // =========================================================
     // RETROFIT
     // =========================================================
 
-    val apiService: ApiService by lazy {
+    val apiService:
+            ApiService by lazy {
 
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(client)
-            .addConverterFactory(
-                GsonConverterFactory.create()
+        Retrofit
+            .Builder()
+
+            .baseUrl(
+                BASE_URL
             )
+
+            .client(
+                client
+            )
+
+            .addConverterFactory(
+                GsonConverterFactory
+                    .create()
+            )
+
             .build()
-            .create(ApiService::class.java)
+
+            .create(
+                ApiService::class.java
+            )
     }
 }
