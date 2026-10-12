@@ -938,7 +938,7 @@ fun SplashScreen() {
             ) {
 
                 Text(
-                    text = "Leasing",
+                    text = "DOC",
 
                     fontSize =
                         30.sp,
@@ -960,7 +960,7 @@ fun SplashScreen() {
 
 
                 Text(
-                    text = "Document",
+                    text = "SECURE",
 
                     style =
                         TextStyle(
@@ -1420,7 +1420,7 @@ fun LoginScreen(
 
                 Text(
                     text =
-                        "Leasing",
+                        "DOC",
 
                     fontSize =
                         28.sp,
@@ -1443,7 +1443,7 @@ fun LoginScreen(
 
                 Text(
                     text =
-                        "Document",
+                        "SECURE",
 
                     style =
                         TextStyle(
