@@ -742,7 +742,7 @@ class CaptureDraftsActivity : ComponentActivity() {
 
         addHeader(
             title = "Encrypted Draft",
-            subtitle = "Review security details before submission",
+            subtitle = "Review Component 3 security status before secure storage",
             showBack = true
         )
 
@@ -894,7 +894,7 @@ class CaptureDraftsActivity : ComponentActivity() {
             }
 
             actionButton(
-                text = "SUBMIT SECURELY TO BACKEND",
+                text = "SECURE DOCUMENT",
                 background = gradientBackground(
                     intArrayOf(
                         Color.rgb(110, 80, 184),
@@ -996,7 +996,7 @@ class CaptureDraftsActivity : ComponentActivity() {
 
         securityBox.addView(
             TextView(this).apply {
-                text = "Local integrity verified"
+                text = "Local security verified"
                 textSize = 12.5f
                 setTextColor(SUCCESS_TEXT)
                 setTypeface(typeface, Typeface.BOLD)
@@ -1005,7 +1005,7 @@ class CaptureDraftsActivity : ComponentActivity() {
 
         securityBox.addView(
             TextView(this).apply {
-                text = "AES-GCM authentication and SHA-256 verification passed. Backend verification runs again when you submit."
+                text = "AES-256-GCM authentication and SHA-256 verification passed. Backend integrity verification, encryption and secure storage run again when you secure this document."
                 textSize = 10.5f
                 setTextColor(Color.rgb(80, 113, 93))
                 setPadding(0, dp(5), 0, 0)
@@ -1020,6 +1020,12 @@ class CaptureDraftsActivity : ComponentActivity() {
             ).apply {
                 topMargin = dp(14)
             }
+        )
+
+        addMetaRow(
+            card,
+            "Backend Storage",
+            "Pending secure submission"
         )
 
         val hash = meta.optString("mobileSha256").ifBlank { "-" }
@@ -1258,18 +1264,19 @@ class CaptureDraftsActivity : ComponentActivity() {
                             body.stored
 
                 if (completelyVerified) {
+                    val securedDocumentId =
+                        requireNotNull(body?.documentId)
+
                     withContext(Dispatchers.IO) {
                         store.delete(id)
                     }
 
-                    Toast.makeText(
-                        this@CaptureDraftsActivity,
-                        "Secure submission complete. Document ID: ${body?.documentId}",
-                        Toast.LENGTH_LONG
-                    ).show()
-
                     loading = false
-                    showList()
+
+                    showSubmissionSuccess(
+                        documentId = securedDocumentId
+                    )
+
                     return@launch
                 }
 
@@ -1280,6 +1287,33 @@ class CaptureDraftsActivity : ComponentActivity() {
                             response.code(),
                             response.errorBody()?.string()
                         )
+
+                val integrityFailed =
+                    response.code() == 409 ||
+                            (body != null && !body.integrityVerified) ||
+                            errorMessage.contains(
+                                "hash mismatch",
+                                ignoreCase = true
+                            ) ||
+                            errorMessage.contains(
+                                "tampering",
+                                ignoreCase = true
+                            ) ||
+                            errorMessage.contains(
+                                "integrity verification failed",
+                                ignoreCase = true
+                            )
+
+                if (integrityFailed) {
+                    loading = false
+
+                    showIntegrityFailure(
+                        draftId = id,
+                        message = errorMessage
+                    )
+
+                    return@launch
+                }
 
                 Toast.makeText(
                     this@CaptureDraftsActivity,
@@ -1301,6 +1335,142 @@ class CaptureDraftsActivity : ComponentActivity() {
             }
         }
     }
+
+    // =========================================================
+    // COMPONENT 3 SUCCESS RESULT
+    // =========================================================
+
+    private fun showSubmissionSuccess(
+        documentId: Long
+    ) {
+        reset()
+        selectedId = null
+
+        addHeader(
+            title = "Document Secured",
+            subtitle = "Secure storage completed successfully",
+            showBack = false
+        )
+
+        addHeroCard(
+            countText = "DOCUMENT SECURED",
+            subtitle = "Integrity verification, encryption and secure backend storage were confirmed."
+        )
+
+        addStatusCard(
+            title = "✓ Integrity Verified",
+            message = "The backend verified the submitted document against its SHA-256 integrity value.",
+            backgroundColor = SUCCESS_BG,
+            titleColor = SUCCESS_TEXT
+        )
+
+        addSpace(10)
+
+        addStatusCard(
+            title = "✓ AES-256-GCM Encryption",
+            message = "The document was encrypted by the secure storage pipeline before storage.",
+            backgroundColor = SUCCESS_BG,
+            titleColor = SUCCESS_TEXT
+        )
+
+        addSpace(10)
+
+        addStatusCard(
+            title = "✓ Securely Stored",
+            message = "Encrypted storage and backend decryption verification were both confirmed.",
+            backgroundColor = SUCCESS_BG,
+            titleColor = SUCCESS_TEXT
+        )
+
+        addSpace(10)
+
+        addStatusCard(
+            title = "Document ID",
+            message = documentId.toString(),
+            backgroundColor = SOFT_PURPLE,
+            titleColor = PURPLE
+        )
+
+        actionButton(
+            text = "BACK TO DRAFTS",
+            background = gradientBackground(
+                intArrayOf(
+                    PURPLE,
+                    PURPLE_2,
+                    PINK
+                ),
+                17
+            ),
+            textColor = Color.WHITE
+        ) {
+            showList()
+        }
+
+        addSpace(18)
+    }
+
+
+    // =========================================================
+    // COMPONENT 3 INTEGRITY FAILURE
+    // =========================================================
+
+    private fun showIntegrityFailure(
+        draftId: String,
+        message: String
+    ) {
+        reset()
+        selectedId = draftId
+
+        addHeader(
+            title = "Integrity Verification Failed",
+            subtitle = "Secure storage blocked",
+            showBack = true
+        )
+
+        addStatusCard(
+            title = "TAMPERING DETECTED",
+            message = "SHA-256 hash mismatch detected. The encrypted local draft was kept.",
+            backgroundColor = SOFT_PINK,
+            titleColor = Color.rgb(161, 50, 69)
+        )
+
+        addSpace(10)
+
+        addStatusCard(
+            title = "Verification Details",
+            message = message,
+            backgroundColor = Color.WHITE,
+            titleColor = TEXT
+        )
+
+        actionButton(
+            text = "REVIEW LOCAL DRAFT",
+            background = gradientBackground(
+                intArrayOf(
+                    PURPLE,
+                    PURPLE_2
+                ),
+                17
+            ),
+            textColor = Color.WHITE
+        ) {
+            showDraft(draftId)
+        }
+
+        actionButton(
+            text = "BACK TO DRAFTS",
+            background = roundedBackground(
+                SOFT_PURPLE,
+                17
+            ),
+            textColor = PURPLE
+        ) {
+            showList()
+        }
+
+        addSpace(18)
+    }
+
 
     private fun textPart(value: String): RequestBody =
         value.toRequestBody(

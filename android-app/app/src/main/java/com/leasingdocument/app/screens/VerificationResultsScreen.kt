@@ -646,7 +646,7 @@ fun VerificationResultsScreen() {
                                     "Integrity Verification",
 
                                 subtitle =
-                                    "${integrityResults.size} integrity result(s)",
+                                    "${integrityResults.size} result(s)",
 
                                 colors =
                                     listOf(
@@ -1157,13 +1157,35 @@ private fun AlterationResultCard(
 
 
 // =====================================================================
-// INTEGRITY CARD
+// INTEGRITY CARD - COMPONENT 3
 // =====================================================================
 
 @Composable
 private fun IntegrityResultCard(
     result: IntegrityResult
 ) {
+
+    val verification =
+        result.verificationResult
+            ?: "UNKNOWN"
+
+    val upper =
+        verification.uppercase()
+
+    val passed =
+        upper.contains(
+            "PASS"
+        ) ||
+                upper.contains(
+                    "VALID"
+                ) ||
+                upper.contains(
+                    "VERIFIED"
+                ) ||
+                upper.contains(
+                    "MATCH"
+                )
+
 
     Box(
         modifier =
@@ -1186,6 +1208,10 @@ private fun IntegrityResultCard(
     ) {
 
         Column {
+
+            // =================================================
+            // DOCUMENT + FINAL INTEGRITY STATUS
+            // =================================================
 
             Row(
                 modifier =
@@ -1240,8 +1266,7 @@ private fun IntegrityResultCard(
 
                 IntegrityBadge(
                     result =
-                        result.verificationResult
-                            ?: "-"
+                        verification
                 )
             }
 
@@ -1249,28 +1274,168 @@ private fun IntegrityResultCard(
             Spacer(
                 modifier =
                     Modifier.height(
-                        15.dp
+                        14.dp
                     )
             )
 
 
-            VerificationInfoRow(
-                label =
-                    "Verification",
+            // =================================================
+            // SUCCESS / FAILURE OUTCOME
+            // =================================================
 
-                value =
-                    result.verificationResult
-                        ?: "-"
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(
+                                16.dp
+                            )
+                        )
+                        .background(
+                            if (
+                                passed
+                            ) {
+
+                                Color(0xFFEAF8F0)
+
+                            } else {
+
+                                Color(0xFFFFECEF)
+                            }
+                        )
+                        .padding(
+                            14.dp
+                        )
+            ) {
+
+                Text(
+                    text =
+                        if (
+                            passed
+                        ) {
+
+                            "INTEGRITY VERIFIED"
+
+                        } else {
+
+                            "INTEGRITY FAILED"
+                        },
+
+                    fontSize =
+                        12.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    color =
+                        if (
+                            passed
+                        ) {
+
+                            Color(0xFF247148)
+
+                        } else {
+
+                            Color(0xFFB33449)
+                        }
+                )
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+
+            // =================================================
+            // COMPONENT 3 SECURITY CONTROLS
+            // =================================================
+
+            Text(
+                text =
+                    "Security Details",
+
+                fontSize =
+                    12.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color(0xFF41364F)
             )
 
 
             Spacer(
                 modifier =
                     Modifier.height(
-                        5.dp
+                        7.dp
                     )
             )
 
+
+            VerificationInfoRow(
+                label =
+                    "Document ID",
+
+                value =
+                    result.documentId
+                        ?.toString()
+                        ?: "-"
+            )
+
+
+            VerificationInfoRow(
+                label =
+                    "Integrity",
+
+                value =
+                    "SHA-256"
+            )
+
+
+            VerificationInfoRow(
+                label =
+                    "Encryption",
+
+                value =
+                    "AES-256-GCM"
+            )
+
+
+            VerificationInfoRow(
+                label =
+                    "Storage",
+
+                value =
+                    "Encrypted"
+            )
+
+
+            VerificationInfoRow(
+                label =
+                    "Final Check",
+
+                value =
+                    verification
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        8.dp
+                    )
+            )
+
+
+            // =================================================
+            // HASH EVIDENCE
+            // =================================================
 
             Text(
                 text =
@@ -1348,6 +1513,8 @@ private fun IntegrityResultCard(
                     result.processedAt
                         ?: "-"
             )
+
+
         }
     }
 }
