@@ -7,7 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,7 +65,7 @@ fun AgentDashboard(
 
 
     // =========================================================
-    // SYSTEM BACK
+    // SYSTEM BACK BUTTON
     // =========================================================
 
     BackHandler(
@@ -86,18 +85,20 @@ fun AgentDashboard(
 
     when (currentScreen) {
 
+
         // =====================================================
-        // CAPTURE
+        // CAPTURE DOCUMENT
+        // NO EXTRA TOP HEADER
         // =====================================================
 
         "CAPTURE" -> {
 
-            AgentSubScreenContainer(
-                title = "Capture Document",
-                onBack = {
-                    currentScreen =
-                        "DASHBOARD"
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
+                    )
             ) {
 
                 CapturePreparationScreen()
@@ -113,6 +114,7 @@ fun AgentDashboard(
 
             MyDocumentsScreen(
                 onBack = {
+
                     currentScreen =
                         "DASHBOARD"
                 }
@@ -122,16 +124,17 @@ fun AgentDashboard(
 
         // =====================================================
         // VERIFICATION RESULTS
+        // NO EXTRA TOP HEADER
         // =====================================================
 
         "VERIFICATION_RESULTS" -> {
 
-            AgentSubScreenContainer(
-                title = "Verification Results",
-                onBack = {
-                    currentScreen =
-                        "DASHBOARD"
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
+                    )
             ) {
 
                 VerificationResultsScreen()
@@ -146,17 +149,21 @@ fun AgentDashboard(
         else -> {
 
             PremiumAgentDashboard(
+
                 onCaptureClick = {
+
                     currentScreen =
                         "CAPTURE"
                 },
 
                 onDocumentsClick = {
+
                     currentScreen =
                         "MY_DOCUMENTS"
                 },
 
                 onVerificationClick = {
+
                     currentScreen =
                         "VERIFICATION_RESULTS"
                 },
@@ -172,6 +179,7 @@ fun AgentDashboard(
                 },
 
                 onLogout = {
+
                     onLogout()
                 }
             )
@@ -224,9 +232,9 @@ private fun PremiumAgentDashboard(
                 size.height
 
 
-            // =====================================================
+            // -----------------------------------------------------
             // TOP PEACH
-            // =====================================================
+            // -----------------------------------------------------
 
             val topPeach =
                 Path().apply {
@@ -275,10 +283,14 @@ private fun PremiumAgentDashboard(
                     Brush.linearGradient(
                         colors = listOf(
                             Color(0xFFFFD1AF)
-                                .copy(alpha = 0.62f),
+                                .copy(
+                                    alpha = 0.62f
+                                ),
 
                             Color(0xFFFFE8DE)
-                                .copy(alpha = 0.30f),
+                                .copy(
+                                    alpha = 0.30f
+                                ),
 
                             Color.Transparent
                         )
@@ -286,9 +298,9 @@ private fun PremiumAgentDashboard(
             )
 
 
-            // =====================================================
+            // -----------------------------------------------------
             // PINK RIBBON
-            // =====================================================
+            // -----------------------------------------------------
 
             val pinkRibbon =
                 Path().apply {
@@ -332,10 +344,14 @@ private fun PremiumAgentDashboard(
                     Brush.linearGradient(
                         colors = listOf(
                             Color(0xFFF47AAC)
-                                .copy(alpha = 0.14f),
+                                .copy(
+                                    alpha = 0.14f
+                                ),
 
                             Color(0xFFF75FA7)
-                                .copy(alpha = 0.35f),
+                                .copy(
+                                    alpha = 0.35f
+                                ),
 
                             Color.Transparent
                         )
@@ -343,9 +359,9 @@ private fun PremiumAgentDashboard(
             )
 
 
-            // =====================================================
+            // -----------------------------------------------------
             // ORANGE LINE
-            // =====================================================
+            // -----------------------------------------------------
 
             val orangeLine =
                 Path().apply {
@@ -374,7 +390,9 @@ private fun PremiumAgentDashboard(
 
                 color =
                     Color(0xFFFF923F)
-                        .copy(alpha = 0.78f),
+                        .copy(
+                            alpha = 0.78f
+                        ),
 
                 style =
                     Stroke(
@@ -384,16 +402,18 @@ private fun PremiumAgentDashboard(
             )
 
 
-            // =====================================================
+            // -----------------------------------------------------
             // BOTTOM GLOW
-            // =====================================================
+            // -----------------------------------------------------
 
             drawCircle(
                 brush =
                     Brush.radialGradient(
                         colors = listOf(
                             Color(0xFFAA44E6)
-                                .copy(alpha = 0.10f),
+                                .copy(
+                                    alpha = 0.10f
+                                ),
 
                             Color.Transparent
                         )
@@ -415,7 +435,7 @@ private fun PremiumAgentDashboard(
 
 
         // =========================================================
-        // CONTENT
+        // DASHBOARD CONTENT
         // =========================================================
 
         Column(
@@ -430,6 +450,7 @@ private fun PremiumAgentDashboard(
                         22.dp
                 )
         ) {
+
 
             Spacer(
                 modifier =
@@ -462,6 +483,7 @@ private fun PremiumAgentDashboard(
                         verticalAlignment =
                             Alignment.CenterVertically
                     ) {
+
 
                         Text(
                             text =
@@ -692,7 +714,7 @@ private fun PremiumAgentDashboard(
 
 
             // =====================================================
-            // QUICK ACTIONS TITLE
+            // QUICK ACTIONS
             // =====================================================
 
             Text(
@@ -838,7 +860,7 @@ private fun PremiumAgentDashboard(
 
 
             // =====================================================
-            // LOCAL DRAFTS
+            // LOCAL CAPTURE DRAFTS
             // =====================================================
 
             AgentFeatureCard(
@@ -871,11 +893,12 @@ private fun PremiumAgentDashboard(
 
 
             // =====================================================
-            // LOGOUT
+            // LOG OUT
             // =====================================================
 
             Button(
                 onClick = {
+
                     onLogout()
                 },
 
@@ -892,13 +915,14 @@ private fun PremiumAgentDashboard(
                     ),
 
                 colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor =
-                            Color(0xFF171B2D),
+                    ButtonDefaults
+                        .buttonColors(
+                            containerColor =
+                                Color(0xFF171B2D),
 
-                        contentColor =
-                            Color.White
-                    )
+                            contentColor =
+                                Color.White
+                        )
             ) {
 
                 Text(
@@ -985,6 +1009,7 @@ private fun AgentFeatureCard(
                 )
             )
             .clickable {
+
                 onClick()
             }
             .padding(
@@ -999,6 +1024,7 @@ private fun AgentFeatureCard(
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
+
 
             Box(
                 modifier = Modifier
@@ -1112,139 +1138,6 @@ private fun AgentFeatureCard(
                 color =
                     Color(0xFF8D8598)
             )
-        }
-    }
-}
-
-
-// =====================================================================
-// AGENT SUB SCREEN CONTAINER
-// =====================================================================
-
-@Composable
-private fun AgentSubScreenContainer(
-    title: String,
-    onBack: () -> Unit,
-    content: @Composable () -> Unit
-) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Color(0xFFFCF9FF)
-            )
-            .statusBarsPadding()
-    ) {
-
-        // =========================================================
-        // HEADER
-        // =========================================================
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Color.White
-                )
-                .padding(
-                    horizontal =
-                        18.dp,
-
-                    vertical =
-                        14.dp
-                ),
-
-            verticalAlignment =
-                Alignment.CenterVertically
-        ) {
-
-            Box(
-                modifier = Modifier
-                    .size(
-                        42.dp
-                    )
-                    .clip(
-                        RoundedCornerShape(
-                            13.dp
-                        )
-                    )
-                    .background(
-                        Color(0xFFF1EBFA)
-                    )
-                    .clickable {
-                        onBack()
-                    },
-
-                contentAlignment =
-                    Alignment.Center
-            ) {
-
-                Text(
-                    text =
-                        "‹",
-
-                    fontSize =
-                        32.sp,
-
-                    color =
-                        Color(0xFF6049A3)
-                )
-            }
-
-
-            Spacer(
-                modifier =
-                    Modifier.width(
-                        14.dp
-                    )
-            )
-
-
-            Column {
-
-                Text(
-                    text =
-                        title,
-
-                    fontSize =
-                        19.sp,
-
-                    fontWeight =
-                        FontWeight.Bold,
-
-                    color =
-                        Color(0xFF16192B)
-                )
-
-
-                Text(
-                    text =
-                        "DOC SECURE",
-
-                    fontSize =
-                        9.sp,
-
-                    letterSpacing =
-                        1.2.sp,
-
-                    color =
-                        Color(0xFF8A8396)
-                )
-            }
-        }
-
-
-        // =========================================================
-        // EXISTING SCREEN
-        // =========================================================
-
-        Box(
-            modifier =
-                Modifier.fillMaxSize()
-        ) {
-
-            content()
         }
     }
 }

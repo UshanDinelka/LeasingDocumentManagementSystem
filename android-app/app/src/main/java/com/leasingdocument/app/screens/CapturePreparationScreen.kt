@@ -1,3 +1,5 @@
+
+
 package com.leasingdocument.app.screens
 
 import android.app.Activity
@@ -25,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.statusBarsPadding
 
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -525,9 +528,9 @@ fun CapturePreparationScreen() {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(
-                    horizontal =
-                        20.dp
+                    horizontal = 20.dp
                 ),
 
             verticalArrangement =
@@ -777,128 +780,63 @@ fun CapturePreparationScreen() {
 
 
                         // =============================================
-                        // CREATE + REFRESH
+                        // CREATE CUSTOMER
                         // =============================================
 
                         item {
 
-                            Row(
-                                modifier =
-                                    Modifier.fillMaxWidth(),
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(
+                                        52.dp
+                                    )
+                                    .clip(
+                                        RoundedCornerShape(
+                                            16.dp
+                                        )
+                                    )
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors =
+                                                listOf(
+                                                    Color(0xFF7351BD),
+                                                    Color(0xFF9450C5)
+                                                )
+                                        )
+                                    )
+                                    .clickable {
 
-                                horizontalArrangement =
-                                    Arrangement.spacedBy(
-                                        12.dp
-                                    ),
+                                        page =
+                                            "CREATE"
 
-                                verticalAlignment =
-                                    Alignment.CenterVertically
+                                        message =
+                                            ""
+                                    },
+
+                                contentAlignment =
+                                    Alignment.Center
                             ) {
 
+                                Text(
+                                    text =
+                                        "+  CREATE CUSTOMER",
 
-                                // CREATE CUSTOMER
-                                Box(
-                                    modifier = Modifier
-                                        .weight(
-                                            1f
-                                        )
-                                        .height(
-                                            52.dp
-                                        )
-                                        .clip(
-                                            RoundedCornerShape(
-                                                16.dp
-                                            )
-                                        )
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                colors =
-                                                    listOf(
-                                                        Color(0xFF7351BD),
-                                                        Color(0xFF9450C5)
-                                                    )
-                                            )
-                                        )
-                                        .clickable {
+                                    color =
+                                        Color.White,
 
-                                            page =
-                                                "CREATE"
+                                    fontSize =
+                                        12.sp,
 
-                                            message =
-                                                ""
-                                        },
+                                    fontWeight =
+                                        FontWeight.Bold,
 
-                                    contentAlignment =
-                                        Alignment.Center
-                                ) {
+                                    letterSpacing =
+                                        0.3.sp,
 
-                                    Text(
-                                        text =
-                                            "+  CREATE CUSTOMER",
-
-                                        color =
-                                            Color.White,
-
-                                        fontSize =
-                                            11.sp,
-
-                                        fontWeight =
-                                            FontWeight.Bold,
-
-                                        letterSpacing =
-                                            0.2.sp,
-
-                                        maxLines =
-                                            1
-                                    )
-                                }
-
-
-                                // REFRESH
-                                Box(
-                                    modifier = Modifier
-                                        .width(
-                                            110.dp
-                                        )
-                                        .height(
-                                            52.dp
-                                        )
-                                        .clip(
-                                            RoundedCornerShape(
-                                                16.dp
-                                            )
-                                        )
-                                        .background(
-                                            Color.White.copy(
-                                                alpha =
-                                                    0.95f
-                                            )
-                                        )
-                                        .clickable {
-                                            reload++
-                                        },
-
-                                    contentAlignment =
-                                        Alignment.Center
-                                ) {
-
-                                    Text(
-                                        text =
-                                            "REFRESH",
-
-                                        color =
-                                            Color(0xFF7650BD),
-
-                                        fontSize =
-                                            11.sp,
-
-                                        fontWeight =
-                                            FontWeight.Bold,
-
-                                        letterSpacing =
-                                            0.5.sp
-                                    )
-                                }
+                                    maxLines =
+                                        1
+                                )
                             }
                         }
 
@@ -1292,31 +1230,49 @@ fun CapturePreparationScreen() {
 
                         item {
 
-                            OutlinedButton(
-                                enabled =
-                                    !saving,
-
-                                onClick = {
-
-                                    page =
-                                        "CUSTOMER"
-
-                                    message =
-                                        ""
-                                },
-
-                                modifier =
-                                    Modifier.fillMaxWidth(),
-
-                                shape =
-                                    RoundedCornerShape(
-                                        16.dp
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .clip(
+                                        RoundedCornerShape(16.dp)
                                     )
+                                    .background(
+                                        Color(0xFFF2ECFA)
+                                    )
+                                    .clickable(
+                                        enabled = !saving
+                                    ) {
+                                        page = "CUSTOMER"
+                                        message = ""
+                                    },
+
+                                contentAlignment = Alignment.Center
                             ) {
 
-                                Text(
-                                    "BACK TO CUSTOMERS"
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+
+                                    Text(
+                                        text = "‹",
+                                        fontSize = 24.sp,
+                                        color = Color(0xFF7650BD)
+                                    )
+
+                                    Spacer(
+                                        modifier = Modifier.width(8.dp)
+                                    )
+
+                                    Text(
+                                        text = "BACK TO CUSTOMERS",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.4.sp,
+                                        color = Color(0xFF7650BD)
+                                    )
+                                }
                             }
                         }
                     }
