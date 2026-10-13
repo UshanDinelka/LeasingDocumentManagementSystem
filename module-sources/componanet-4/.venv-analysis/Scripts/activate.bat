@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set "VIRTUAL_ENV=C:\Users\user\Documents\LeasingDocumentSystem\module-sources\componanet-4\.venv-analysis"
+set "VIRTUAL_ENV=D:\3rd 2nd\latest isp\LeasingDocumentSystem-main\LeasingDocumentSystem-main\module-sources\componanet-4\.venv-analysis"
 
 if not defined PROMPT set PROMPT=$P$G
 
