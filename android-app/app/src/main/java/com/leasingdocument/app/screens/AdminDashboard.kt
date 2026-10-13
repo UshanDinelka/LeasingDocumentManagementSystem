@@ -100,11 +100,12 @@ fun AdminDashboard(
 
         "DOCUMENTS" -> {
 
-            AdminSubScreenContainer(
-                title = "Manage Documents",
-                onBack = {
-                    currentScreen = "DASHBOARD"
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
+                    )
             ) {
 
                 ManageDocumentsScreen()
@@ -114,11 +115,12 @@ fun AdminDashboard(
 
         "AUDIT_LOGS" -> {
 
-            AdminSubScreenContainer(
-                title = "Audit Logs",
-                onBack = {
-                    currentScreen = "DASHBOARD"
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
+                    )
             ) {
 
                 AuditLogsScreen()
@@ -128,11 +130,12 @@ fun AdminDashboard(
 
         "SYSTEM_DATA" -> {
 
-            AdminSubScreenContainer(
-                title = "System Data",
-                onBack = {
-                    currentScreen = "DASHBOARD"
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
+                    )
             ) {
 
                 SystemDataScreen()
