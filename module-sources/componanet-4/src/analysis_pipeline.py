@@ -12,6 +12,8 @@ from src.risk_scoring import (
 
 from src.analysis_preflight import register_document, VERSION
 from src.visual_evidence import analyse_visual_evidence, score_evidence
+from src.forensic_analysis import evaluate_document, annotate
+from src.layout_free_pipeline import run_layout_free
 # =========================================================
 # IMPORT OUR EXISTING ALGORITHMS
 # =========================================================
@@ -1148,6 +1150,8 @@ def run_analysis_pipeline(
     document_type,
     output_folder,
     ocr_validation=None,
+    ocr=None,
+    trusted_reference_path=None,
 ):
 
     captured_image_path = Path(
@@ -1165,6 +1169,10 @@ def run_analysis_pipeline(
         exist_ok=True,
     )
 
+
+    if document_type in ("SALARY_SLIP", "UTILITY_BILL"):
+        return run_layout_free(captured_image_path, document_type, output_folder,
+                               ocr or {}, ocr_validation or {})
 
     # =====================================================
     # CHECK DOCUMENT SUPPORT
@@ -1266,62 +1274,56 @@ def run_analysis_pipeline(
     )
 
 
-    # Previous comparisons used another holder's variable fields. Do not run
-    # or score those measurements as evidence of alteration.
-    background_results = {}
-    edge_results = {}
-    text_results = {}
-    photo_results = {}
-    symbol_results = {}
+    # Generic templates cannot establish that another person's name/portrait
+    # was changed. Compare personal fields only to an explicitly trusted image
+    # of this SAME document, supplied by the server from a verified source.
+    trusted_registered_path = None
+    reference_alignment = None
+    if trusted_reference_path is not None:
+        with Image.open(trusted_reference_path) as original_reference, Image.open(template_path) as layout:
+            registered_ref, reference_alignment = register_document(original_reference, layout, document_type)
+        if registered_ref is None:
+            return {"status": "INCOMPLETE", "reasonCode": "TRUSTED_REFERENCE_ALIGNMENT_FAILED",
+                    "message": "The trusted reference could not be registered to the approved layout.",
+                    "risk_score": None, "risk_level": None, "recommended_action": "MANUAL_REVIEW_REQUIRED"}
+        trusted_registered_path = output_folder / "preprocessing" / "trusted_reference_registered.png"
+        registered_ref.save(trusted_registered_path)
 
-    localization_results = analyse_visual_evidence(
-        normalized_template, normalized_document, document_type, metadata)
-
-    if localization_results["comparison_status"] == "UNRELIABLE":
-        return {"status": "INCOMPLETE", "reasonCode": "REFERENCE_COMPARISON_UNRELIABLE",
-                "message": "Widespread appearance differences prevent a reliable local comparison. Check the template edition and recapture under even lighting.",
-                "alignment": alignment, "algorithmVersion": VERSION,
-                "risk_score": None, "risk_level": None,
-                "recommended_action": "MANUAL_REVIEW_REQUIRED"}
-
-
-    save_json(
-
-        output_folder
-        / "altered_text_localization.json",
-
-        localization_results,
-    )
-
-
-    # =====================================================
-    # 9. CREATE HIGHLIGHTED IMAGE
-    # =====================================================
-
-    highlighted_path = (
-
-        output_folder
-        / "highlighted_suspicious_areas.png"
-    )
-
-
-    create_highlighted_document(
-
-        normalized_document,
-
-        localization_results[
-            "suspicious_areas"
-        ],
-
-        highlighted_path,
-    )
-
-    # =====================================================
-    # 10. RISK SCORING
-    # =====================================================
-
-    risk_result = score_evidence(localization_results, ocr_validation)
-
+    forensic = evaluate_document(
+        normalized_template, normalized_document, document_type, metadata,
+        ocr or {}, alignment, trusted_registered_path, ocr_validation)
+    if forensic["templateEvidence"].get("comparison_status") == "UNRELIABLE":
+        return {"status":"INCOMPLETE", "reasonCode":"TEMPLATE_APPEARANCE_UNRELIABLE",
+                "message":"The template differs too widely from the capture. Verify template edition, lighting and alignment.",
+                "risk_score":None,"risk_level":None,"recommended_action":"MANUAL_REVIEW_REQUIRED"}
+    if forensic["referenceStatus"] == "UNRELIABLE":
+        return {"status":"INCOMPLETE", "reasonCode":"SAME_DOCUMENT_COMPARISON_UNRELIABLE",
+                "message":"The trusted-reference comparison has excessive global differences. Recapture under comparable conditions.",
+                "risk_score":None,"risk_level":None,"recommended_action":"MANUAL_REVIEW_REQUIRED"}
+    risk_result = forensic["risk"]
+    localization_results = {
+        "method": "multi_detector_discrepancy_v5",
+        "comparison_status": forensic["templateEvidence"]["comparison_status"],
+        "same_document_status": forensic["referenceStatus"],
+        "suspicious_area_count": risk_result["finding_count"],
+        "suspicious_areas": risk_result["findings"],
+        "coverage_note": risk_result["decision_note"],
+        "reference_diagnostics": forensic["reference"],
+    }
+    highlighted_path = output_folder / "highlighted_suspicious_areas.png"
+    with Image.open(normalized_document) as registered_image:
+        annotate(__import__("numpy").asarray(registered_image.convert("RGB")), risk_result["findings"], highlighted_path)
+    save_json(output_folder / "altered_text_localization.json", localization_results)
+    save_json(output_folder / "text_analysis.json", {"findings": [f for f in risk_result["findings"] if f["component"] == "altered_text"]})
+    save_json(output_folder / "photo_analysis.json", {"findings": [f for f in risk_result["findings"] if f["component"] == "photo"]})
+    save_json(output_folder / "symbol_analysis.json", {"findings": [f for f in risk_result["findings"] if f["component"] == "signature_logo"]})
+    save_json(output_folder / "background_analysis.json", {"findings": [f for f in risk_result["findings"] if f["component"] == "background"]})
+    save_json(output_folder / "edge_analysis.json", {"findings": [f for f in risk_result["findings"] if f["code"] == "RECTANGULAR_OVERLAY_EDGE"]})
+    background_results = {"findings": [f for f in risk_result["findings"] if f["component"] == "background"]}
+    edge_results = {"findings": [f for f in risk_result["findings"] if f["code"] == "RECTANGULAR_OVERLAY_EDGE"]}
+    text_results = {"findings": [f for f in risk_result["findings"] if f["component"] == "altered_text"]}
+    photo_results = {"findings": [f for f in risk_result["findings"] if f["component"] == "photo"]}
+    symbol_results = {"findings": [f for f in risk_result["findings"] if f["component"] == "signature_logo"]}
 
     # =====================================================
     # SAVE RISK RESULT
@@ -1344,7 +1346,9 @@ def run_analysis_pipeline(
         "status":
             "COMPLETE",
         "alignment": alignment,
-        "algorithmVersion": VERSION,
+        "referenceAlignment": ({k:v for k,v in reference_alignment.items() if not k.startswith("_")} if reference_alignment else None),
+        "referenceComparisonStatus": forensic["referenceStatus"],
+        "algorithmVersion": "document-analysis-6",
 
         "document_type":
             document_type,
