@@ -8,13 +8,17 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.Matrix
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.util.Size
 import android.view.Surface
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -104,82 +108,476 @@ class LiveCaptureActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+
         agentId = AuthSession.userId ?: 0L
         customerId = intent.getLongExtra("customerId", 0L)
         typeCode = intent.getStringExtra("documentTypeCode").orEmpty()
         customerName = intent.getStringExtra("customerName").orEmpty()
-        typeName = intent.getStringExtra("documentTypeName")?.takeIf { it.isNotBlank() } ?: typeCode
+        typeName =
+            intent.getStringExtra("documentTypeName")
+                ?.takeIf { it.isNotBlank() }
+                ?: typeCode
+
         if (!authorized() || customerId <= 0 || typeCode.isBlank()) {
-            Toast.makeText(this, "Sign in and select a customer and document type first.", Toast.LENGTH_LONG).show()
-            finish(); return
+            Toast.makeText(
+                this,
+                "Sign in and select a customer and document type first.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            finish()
+            return
         }
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(pad + bars.left, pad + bars.top, pad + bars.right, pad + bars.bottom)
-            insets
-        }
-        root.addView(TextView(this).apply {
-            text = "$typeName\nCustomer: $customerName"; textSize = 20f; maxLines = 3
-        })
-        status = TextView(this).apply { text = "Keep the whole document in view with even lighting."; maxLines = 6 }
-        root.addView(status)
-        preview = TextureView(this).apply {
-            surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+
+        // =========================================================
+        // MINIMAL FULL-SCREEN CAMERA UI
+        // =========================================================
+
+        val root =
+            FrameLayout(this).apply {
+                setBackgroundColor(
+                    Color.BLACK
+                )
+            }
+
+        preview =
+            TextureView(this).apply {
+
+                surfaceTextureListener =
+                    object :
+                        TextureView.SurfaceTextureListener {
+
+                        override fun onSurfaceTextureAvailable(
+                            surface: SurfaceTexture,
+                            width: Int,
+                            height: Int
+                        ) {
+                            checkCameraPermissionAndOpen()
+                        }
+
+                        override fun onSurfaceTextureSizeChanged(
+                            surface: SurfaceTexture,
+                            width: Int,
+                            height: Int
+                        ) {
+                            configureTransform()
+                        }
+
+                        override fun onSurfaceTextureDestroyed(
+                            surface: SurfaceTexture
+                        ): Boolean {
+
+                            closeCamera()
+                            return true
+                        }
+
+                        override fun onSurfaceTextureUpdated(
+                            surface: SurfaceTexture
+                        ) = Unit
+                    }
+            }
+
+        root.addView(
+            preview,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+
+        // =====================================================
+        // REVIEW IMAGE - SHOWN ONLY AFTER CAPTURE
+        // =====================================================
+
+        review =
+            ImageView(this).apply {
+
+                scaleType =
+                    ImageView.ScaleType.FIT_CENTER
+
+                visibility =
+                    View.GONE
+
+                setBackgroundColor(
+                    Color.BLACK
+                )
+            }
+
+        root.addView(
+            review,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+
+        // =====================================================
+        // HIDDEN STATUS HOLDER
+        // Existing camera/security logic writes status messages here.
+        // It is intentionally not added to the visible layout.
+        // =====================================================
+
+        status =
+            TextView(this).apply {
+                text =
+                    "Keep the whole document in view with even lighting."
+            }
+
+
+        // =====================================================
+        // CAMERA PERMISSION BUTTON
+        // Only appears if Android camera permission is missing.
+        // =====================================================
+
+        permission =
+            Button(this).apply {
+
+                text =
+                    "ALLOW CAMERA"
+
+                visibility =
+                    View.GONE
+
+                isAllCaps =
+                    false
+
+                textSize =
+                    12f
+
+                setTextColor(
+                    Color.WHITE
+                )
+
+                background =
+                    roundedBackground(
+                        Color.argb(
+                            220,
+                            85,
+                            60,
+                            140
+                        ),
+                        18
+                    )
+
+                setOnClickListener {
+
+                    requestPermission.launch(
+                        Manifest.permission.CAMERA
+                    )
+                }
+            }
+
+        root.addView(
+            permission,
+            FrameLayout.LayoutParams(
+                dp(180),
+                dp(52),
+                Gravity.CENTER
+            )
+        )
+
+
+        // =====================================================
+        // CAPTURE SHUTTER
+        // =====================================================
+
+        capture =
+            Button(this).apply {
+
+                text =
+                    ""
+
+                isEnabled =
+                    false
+
+                background =
+                    GradientDrawable().apply {
+
+                        shape =
+                            GradientDrawable.OVAL
+
+                        setColor(
+                            Color.WHITE
+                        )
+
+                        setStroke(
+                            dp(5),
+                            Color.argb(
+                                180,
+                                210,
+                                210,
+                                210
+                            )
+                        )
+                    }
+
+                setOnClickListener {
+                    capturePhoto()
+                }
+            }
+
+        root.addView(
+            capture,
+            FrameLayout.LayoutParams(
+                dp(78),
+                dp(78),
+                Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            ).apply {
+
+                bottomMargin =
+                    dp(26)
+            }
+        )
+
+
+        // =====================================================
+        // REVIEW ACTIONS
+        // Hidden during live camera.
+        // Shown only after a photo is captured.
+        // =====================================================
+
+        val reviewActions =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER
+
+                setPadding(
+                    dp(20),
+                    0,
+                    dp(20),
+                    dp(24)
+                )
+
+                visibility =
+                    View.VISIBLE
+            }
+
+
+        retake =
+            Button(this).apply {
+
+                text =
+                    "RETAKE"
+
+                visibility =
+                    View.GONE
+
+                isAllCaps =
+                    false
+
+                textSize =
+                    12f
+
+                setTextColor(
+                    Color.WHITE
+                )
+
+                background =
+                    roundedBackground(
+                        Color.argb(
+                            190,
+                            45,
+                            45,
+                            50
+                        ),
+                        16
+                    )
+
+                setOnClickListener {
+
+                    clearPhoto()
+
+                    review.visibility =
+                        View.GONE
+
+                    preview.visibility =
+                        View.VISIBLE
+
+                    save.visibility =
+                        View.GONE
+
+                    visibility =
+                        View.GONE
+
+                    capture.visibility =
+                        View.VISIBLE
+
                     checkCameraPermissionAndOpen()
                 }
-                override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
-                    configureTransform()
-                }
-                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                    closeCamera()
-                    return true
-                }
-                override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
             }
-        }
-        root.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
-        review = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE }
-        root.addView(review, LinearLayout.LayoutParams(-1, 0, 1f))
-        permission = Button(this).apply {
-            text = "Allow camera"; visibility = View.GONE
-            setOnClickListener { requestPermission.launch(Manifest.permission.CAMERA) }
-        }
-        root.addView(permission)
-        capture = Button(this).apply { text = "Capture photo"; isEnabled = false; setOnClickListener { capturePhoto() } }
-        root.addView(capture)
-        retake = Button(this).apply {
-            text = "Retake"; visibility = View.GONE
-            setOnClickListener {
-                clearPhoto()
-                review.visibility = View.GONE; preview.visibility = View.VISIBLE
-                save.visibility = View.GONE; visibility = View.GONE; capture.visibility = View.VISIBLE
-                checkCameraPermissionAndOpen()
+
+        reviewActions.addView(
+            retake,
+            LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                1f
+            ).apply {
+                marginEnd =
+                    dp(7)
             }
+        )
+
+
+        save =
+            Button(this).apply {
+
+                text =
+                    "SAVE DRAFT"
+
+                visibility =
+                    View.GONE
+
+                isAllCaps =
+                    false
+
+                textSize =
+                    12f
+
+                setTextColor(
+                    Color.WHITE
+                )
+
+                background =
+                    horizontalGradient(
+                        intArrayOf(
+                            Color.rgb(110, 80, 184),
+                            Color.rgb(208, 78, 147)
+                        ),
+                        16
+                    )
+
+                setOnClickListener {
+                    saveDraft()
+                }
+            }
+
+        reviewActions.addView(
+            save,
+            LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                1f
+            ).apply {
+                marginStart =
+                    dp(7)
+            }
+        )
+
+
+        root.addView(
+            reviewActions,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM
+            )
+        )
+
+
+        setContentView(
+            root
+        )
+
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object :
+                OnBackPressedCallback(
+                    true
+                ) {
+
+                override fun handleOnBackPressed() {
+                    leave()
+                }
+            }
+        )
+
+
+        if (
+            savedInstanceState != null
+        ) {
+
+            status.text =
+                "Unsaved capture was cleared. Please capture again."
+
+            Toast.makeText(
+                this,
+                "Unsaved capture was cleared. Please capture again.",
+                Toast.LENGTH_SHORT
+            ).show()
         }
-        root.addView(retake)
-        save = Button(this).apply {
-            text = "Save encrypted draft"; visibility = View.GONE
-            setOnClickListener { saveDraft() }
-        }
-        root.addView(save)
-        root.addView(Button(this).apply { text = "Back"; setOnClickListener { leave() } })
-        setContentView(root)
-        ViewCompat.requestApplyInsets(root)
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() = leave()
-        })
-        if (savedInstanceState != null) status.text = "Unsaved capture was cleared. Please capture again."
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            requestPermission.launch(Manifest.permission.CAMERA)
+
+
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.CAMERA
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+
+            requestPermission.launch(
+                Manifest.permission.CAMERA
+            )
         }
     }
 
+
+    // =========================================================
+    // UI HELPERS
+    // =========================================================
+
+    private fun dp(
+        value: Int
+    ): Int =
+        (
+                value *
+                        resources.displayMetrics.density
+                ).toInt()
+
+
+    private fun roundedBackground(
+        color: Int,
+        radiusDp: Int
+    ): GradientDrawable =
+        GradientDrawable().apply {
+
+            shape =
+                GradientDrawable.RECTANGLE
+
+            setColor(
+                color
+            )
+
+            cornerRadius =
+                dp(radiusDp).toFloat()
+        }
+
+
+    private fun horizontalGradient(
+        colors: IntArray,
+        radiusDp: Int
+    ): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.LEFT_RIGHT,
+            colors
+        ).apply {
+
+            cornerRadius =
+                dp(radiusDp).toFloat()
+        }
+
+
     private fun authorized() = agentId > 0 && AuthSession.userId == agentId &&
-        AuthSession.role == "AGENT" && !AuthSession.token.isNullOrBlank()
+            AuthSession.role == "AGENT" && !AuthSession.token.isNullOrBlank()
 
     // The same direct Camera2 entry points used by the original CaptureActivity.
     private fun checkCameraPermissionAndOpen() {
@@ -205,7 +603,7 @@ class LiveCaptureActivity : ComponentActivity() {
             // Original firstOrNull() could choose the selfie camera.
             val cameraId = manager.cameraIdList.firstOrNull {
                 manager.getCameraCharacteristics(it)[CameraCharacteristics.LENS_FACING] ==
-                    CameraCharacteristics.LENS_FACING_BACK
+                        CameraCharacteristics.LENS_FACING_BACK
             } ?: error("No rear camera available")
             val info = manager.getCameraCharacteristics(cameraId)
             characteristics = info
@@ -216,7 +614,7 @@ class LiveCaptureActivity : ComponentActivity() {
             require(jpegSizes.isNotEmpty()) { "No supported bounded JPEG size" }
             val suitable = jpegSizes.filter {
                 maxOf(it.width, it.height) >= CaptureQuality.MIN_LONG_EDGE &&
-                    minOf(it.width, it.height) >= CaptureQuality.MIN_SHORT_EDGE
+                        minOf(it.width, it.height) >= CaptureQuality.MIN_SHORT_EDGE
             }
             val jpegSize = (suitable.ifEmpty { jpegSizes }).minByOrNull {
                 abs(it.width.toLong() * it.height - 1920L * 1080L)
@@ -471,7 +869,7 @@ class LiveCaptureActivity : ComponentActivity() {
                     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeByteArray(captured, 0, captured.size, bounds)
                     require(bounds.outWidth > 0 && bounds.outHeight > 0 &&
-                        bounds.outWidth.toLong() * bounds.outHeight <= 12_000_000L)
+                            bounds.outWidth.toLong() * bounds.outHeight <= 12_000_000L)
                     val decoded = requireNotNull(BitmapFactory.decodeByteArray(captured, 0, captured.size))
                     try {
                         val quality = CaptureQuality.check(decoded)
@@ -504,8 +902,18 @@ class LiveCaptureActivity : ComponentActivity() {
                 preview.visibility = View.GONE; review.visibility = View.VISIBLE
                 capture.visibility = View.GONE; retake.visibility = View.VISIBLE
                 save.visibility = View.VISIBLE; save.isEnabled = result.first.passed
-                status.text = if (result.first.passed) "Quality checks passed. Review the entire document before saving. This will save locally only."
-                    else "Please retake. ${result.first.feedback()}"
+                status.text =
+                    if (result.first.passed) {
+                        "Quality checks passed. Review the entire document before saving. This will save locally only."
+                    } else {
+                        "Please retake. ${result.first.feedback()}"
+                    }
+
+                Toast.makeText(
+                    this@LiveCaptureActivity,
+                    status.text,
+                    Toast.LENGTH_LONG
+                ).show()
             } catch (e: CancellationException) { throw e
             } catch (e: LinkageError) {
                 android.util.Log.e("LiveCapture", "OpenCV initialization failed", e)
@@ -546,7 +954,15 @@ class LiveCaptureActivity : ComponentActivity() {
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 status.text = "Could not save the draft. Check available phone storage and try again."
-                save.isEnabled = true; retake.isEnabled = true
+
+                Toast.makeText(
+                    this@LiveCaptureActivity,
+                    status.text,
+                    Toast.LENGTH_LONG
+                ).show()
+
+                save.isEnabled = true
+                retake.isEnabled = true
             } finally { bytes.fill(0); busy = false }
         }
     }

@@ -1,192 +1,1143 @@
 package com.leasingdocument.app.screens
 
 import android.content.Intent
-import androidx.compose.ui.platform.LocalContext
-import com.leasingdocument.app.capture.CaptureDraftsActivity
+
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+import com.leasingdocument.app.capture.CaptureDraftsActivity
+
 
 @Composable
 fun AgentDashboard(
     onLogout: () -> Unit = {}
 ) {
 
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
 
     var currentScreen by rememberSaveable {
         mutableStateOf("DASHBOARD")
     }
 
-    // Upload / Verification screens system back
-    // My Documents handles its own back navigation
+
+    // =========================================================
+    // SYSTEM BACK BUTTON
+    // =========================================================
+
     BackHandler(
         enabled =
             currentScreen != "DASHBOARD" &&
                     currentScreen != "MY_DOCUMENTS"
     ) {
-        currentScreen = "DASHBOARD"
+
+        currentScreen =
+            "DASHBOARD"
     }
+
+
+    // =========================================================
+    // NAVIGATION
+    // =========================================================
 
     when (currentScreen) {
 
+
+        // =====================================================
+        // CAPTURE DOCUMENT
+        // NO EXTRA TOP HEADER
+        // =====================================================
+
         "CAPTURE" -> {
 
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-
-                Button(
-                    onClick = {
-                        currentScreen = "DASHBOARD"
-                    },
-                    modifier = Modifier.padding(
-                        start = 24.dp,
-                        top = 16.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
                     )
-                ) {
-                    Text("BACK")
-                }
+            ) {
 
                 CapturePreparationScreen()
             }
         }
 
+
+        // =====================================================
+        // MY DOCUMENTS
+        // =====================================================
+
         "MY_DOCUMENTS" -> {
 
             MyDocumentsScreen(
                 onBack = {
-                    currentScreen = "DASHBOARD"
+
+                    currentScreen =
+                        "DASHBOARD"
                 }
             )
         }
 
+
+        // =====================================================
+        // VERIFICATION RESULTS
+        // NO EXTRA TOP HEADER
+        // =====================================================
+
         "VERIFICATION_RESULTS" -> {
 
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-
-                Button(
-                    onClick = {
-                        currentScreen = "DASHBOARD"
-                    },
-                    modifier = Modifier.padding(
-                        start = 24.dp,
-                        top = 16.dp
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
                     )
-                ) {
-                    Text("BACK")
-                }
+            ) {
 
                 VerificationResultsScreen()
             }
         }
 
+
+        // =====================================================
+        // DASHBOARD
+        // =====================================================
+
         else -> {
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(28.dp),
+            PremiumAgentDashboard(
 
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
+                onCaptureClick = {
+
+                    currentScreen =
+                        "CAPTURE"
+                },
+
+                onDocumentsClick = {
+
+                    currentScreen =
+                        "MY_DOCUMENTS"
+                },
+
+                onVerificationClick = {
+
+                    currentScreen =
+                        "VERIFICATION_RESULTS"
+                },
+
+                onDraftsClick = {
+
+                    context.startActivity(
+                        Intent(
+                            context,
+                            CaptureDraftsActivity::class.java
+                        )
+                    )
+                },
+
+                onLogout = {
+
+                    onLogout()
+                }
+            )
+        }
+    }
+}
+
+
+// =====================================================================
+// PREMIUM AGENT DASHBOARD
+// =====================================================================
+
+@Composable
+private fun PremiumAgentDashboard(
+    onCaptureClick: () -> Unit,
+    onDocumentsClick: () -> Unit,
+    onVerificationClick: () -> Unit,
+    onDraftsClick: () -> Unit,
+    onLogout: () -> Unit
+) {
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFFFFCFB),
+                        Color(0xFFFFF8FB),
+                        Color(0xFFF8F2FF)
+                    )
+                )
+            )
+    ) {
+
+
+        // =========================================================
+        // BACKGROUND
+        // =========================================================
+
+        Canvas(
+            modifier =
+                Modifier.fillMaxSize()
+        ) {
+
+            val w =
+                size.width
+
+            val h =
+                size.height
+
+
+            // -----------------------------------------------------
+            // TOP PEACH
+            // -----------------------------------------------------
+
+            val topPeach =
+                Path().apply {
+
+                    moveTo(
+                        0f,
+                        0f
+                    )
+
+                    lineTo(
+                        w * 0.70f,
+                        0f
+                    )
+
+                    cubicTo(
+                        w * 0.58f,
+                        h * 0.03f,
+
+                        w * 0.40f,
+                        h * 0.055f,
+
+                        w * 0.23f,
+                        h * 0.105f
+                    )
+
+                    cubicTo(
+                        w * 0.12f,
+                        h * 0.14f,
+
+                        w * 0.05f,
+                        h * 0.17f,
+
+                        0f,
+                        h * 0.20f
+                    )
+
+                    close()
+                }
+
+
+            drawPath(
+                path =
+                    topPeach,
+
+                brush =
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFFFFD1AF)
+                                .copy(
+                                    alpha = 0.62f
+                                ),
+
+                            Color(0xFFFFE8DE)
+                                .copy(
+                                    alpha = 0.30f
+                                ),
+
+                            Color.Transparent
+                        )
+                    )
+            )
+
+
+            // -----------------------------------------------------
+            // PINK RIBBON
+            // -----------------------------------------------------
+
+            val pinkRibbon =
+                Path().apply {
+
+                    moveTo(
+                        0f,
+                        h * 0.055f
+                    )
+
+                    cubicTo(
+                        w * 0.12f,
+                        h * 0.05f,
+
+                        w * 0.26f,
+                        h * 0.06f,
+
+                        w * 0.38f,
+                        h * 0.035f
+                    )
+
+                    cubicTo(
+                        w * 0.26f,
+                        h * 0.105f,
+
+                        w * 0.12f,
+                        h * 0.175f,
+
+                        0f,
+                        h * 0.235f
+                    )
+
+                    close()
+                }
+
+
+            drawPath(
+                path =
+                    pinkRibbon,
+
+                brush =
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFFF47AAC)
+                                .copy(
+                                    alpha = 0.14f
+                                ),
+
+                            Color(0xFFF75FA7)
+                                .copy(
+                                    alpha = 0.35f
+                                ),
+
+                            Color.Transparent
+                        )
+                    )
+            )
+
+
+            // -----------------------------------------------------
+            // ORANGE LINE
+            // -----------------------------------------------------
+
+            val orangeLine =
+                Path().apply {
+
+                    moveTo(
+                        0f,
+                        h * 0.115f
+                    )
+
+                    cubicTo(
+                        w * 0.20f,
+                        h * 0.080f,
+
+                        w * 0.38f,
+                        h * 0.095f,
+
+                        w * 0.56f,
+                        h * 0.030f
+                    )
+                }
+
+
+            drawPath(
+                path =
+                    orangeLine,
+
+                color =
+                    Color(0xFFFF923F)
+                        .copy(
+                            alpha = 0.78f
+                        ),
+
+                style =
+                    Stroke(
+                        width =
+                            1.2.dp.toPx()
+                    )
+            )
+
+
+            // -----------------------------------------------------
+            // BOTTOM GLOW
+            // -----------------------------------------------------
+
+            drawCircle(
+                brush =
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFFAA44E6)
+                                .copy(
+                                    alpha = 0.10f
+                                ),
+
+                            Color.Transparent
+                        )
+                    ),
+
+                radius =
+                    w * 0.75f,
+
+                center =
+                    Offset(
+                        x =
+                            w * 0.50f,
+
+                        y =
+                            h
+                    )
+            )
+        }
+
+
+        // =========================================================
+        // DASHBOARD CONTENT
+        // =========================================================
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .verticalScroll(
+                    rememberScrollState()
+                )
+                .padding(
+                    horizontal =
+                        22.dp
+                )
+        ) {
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        22.dp
+                    )
+            )
+
+
+            // =====================================================
+            // HEADER
+            // =====================================================
+
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
+
+                Column(
+                    modifier =
+                        Modifier.weight(
+                            1f
+                        )
+                ) {
+
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+
+
+                        Text(
+                            text =
+                                "DOC",
+
+                            fontSize =
+                                25.sp,
+
+                            fontWeight =
+                                FontWeight.Bold,
+
+                            color =
+                                Color(0xFF131A30)
+                        )
+
+
+                        Spacer(
+                            modifier =
+                                Modifier.width(
+                                    6.dp
+                                )
+                        )
+
+
+                        Text(
+                            text =
+                                "SECURE",
+
+                            style =
+                                TextStyle(
+                                    brush =
+                                        Brush.horizontalGradient(
+                                            colors =
+                                                listOf(
+                                                    Color(0xFFFF7A3C),
+                                                    Color(0xFFF04F89),
+                                                    Color(0xFFB72AC5)
+                                                )
+                                        ),
+
+                                    fontSize =
+                                        25.sp,
+
+                                    fontWeight =
+                                        FontWeight.Bold
+                                )
+                        )
+                    }
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                3.dp
+                            )
+                    )
+
+
+                    Text(
+                        text =
+                            "AGENT WORKSPACE",
+
+                        fontSize =
+                            8.sp,
+
+                        letterSpacing =
+                            1.4.sp,
+
+                        color =
+                            Color(0xFF77718B)
+                    )
+                }
+
+
+                Box(
+                    modifier = Modifier
+                        .size(
+                            48.dp
+                        )
+                        .clip(
+                            CircleShape
+                        )
+                        .background(
+                            Brush.linearGradient(
+                                colors =
+                                    listOf(
+                                        Color(0xFFFF8A45),
+                                        Color(0xFFF25796),
+                                        Color(0xFF9A42D5)
+                                    )
+                            )
+                        ),
+
+                    contentAlignment =
+                        Alignment.Center
+                ) {
+
+                    Text(
+                        text =
+                            "AG",
+
+                        color =
+                            Color.White,
+
+                        fontSize =
+                            16.sp,
+
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        32.dp
+                    )
+            )
+
+
+            // =====================================================
+            // WELCOME CARD
+            // =====================================================
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(
+                        RoundedCornerShape(
+                            26.dp
+                        )
+                    )
+                    .background(
+                        Brush.linearGradient(
+                            colors =
+                                listOf(
+                                    Color(0xFF5F51B4),
+                                    Color(0xFF924FC2),
+                                    Color(0xFFD14D92)
+                                )
+                        )
+                    )
+                    .padding(
+                        horizontal =
+                            22.dp,
+
+                        vertical =
+                            24.dp
+                    )
+            ) {
+
+                Column {
+
+                    Text(
+                        text =
+                            "Welcome Back",
+
+                        color =
+                            Color.White.copy(
+                                alpha =
+                                    0.84f
+                            ),
+
+                        fontSize =
+                            13.sp
+                    )
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                5.dp
+                            )
+                    )
+
+
+                    Text(
+                        text =
+                            "Leasing Agent",
+
+                        color =
+                            Color.White,
+
+                        fontSize =
+                            27.sp,
+
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                8.dp
+                            )
+                    )
+
+
+                    Text(
+                        text =
+                            "Capture, submit and monitor secure leasing documents from your workspace.",
+
+                        color =
+                            Color.White.copy(
+                                alpha =
+                                    0.80f
+                            ),
+
+                        fontSize =
+                            13.sp,
+
+                        lineHeight =
+                            19.sp
+                    )
+                }
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        28.dp
+                    )
+            )
+
+
+            // =====================================================
+            // QUICK ACTIONS
+            // =====================================================
+
+            Text(
+                text =
+                    "Quick Actions",
+
+                fontSize =
+                    20.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color(0xFF181B2E)
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        5.dp
+                    )
+            )
+
+
+            Text(
+                text =
+                    "Choose what you want to do",
+
+                fontSize =
+                    13.sp,
+
+                color =
+                    Color(0xFF817B8D)
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        18.dp
+                    )
+            )
+
+
+            // =====================================================
+            // CAPTURE DOCUMENT
+            // =====================================================
+
+            AgentFeatureCard(
+                shortName =
+                    "CP",
+
+                title =
+                    "Capture Document",
+
+                description =
+                    "Start a secure camera capture workflow for a customer document.",
+
+                accentColors =
+                    listOf(
+                        Color(0xFFFF7D42),
+                        Color(0xFFF04F89)
+                    ),
+
+                onClick =
+                    onCaptureClick
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+
+            // =====================================================
+            // MY DOCUMENTS
+            // =====================================================
+
+            AgentFeatureCard(
+                shortName =
+                    "MD",
+
+                title =
+                    "My Documents",
+
+                description =
+                    "View documents you have captured and submitted.",
+
+                accentColors =
+                    listOf(
+                        Color(0xFF8248DC),
+                        Color(0xFFB74DDA)
+                    ),
+
+                onClick =
+                    onDocumentsClick
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+
+            // =====================================================
+            // VERIFICATION RESULTS
+            // =====================================================
+
+            AgentFeatureCard(
+                shortName =
+                    "VR",
+
+                title =
+                    "Verification Results",
+
+                description =
+                    "Review document verification and integrity results.",
+
+                accentColors =
+                    listOf(
+                        Color(0xFF5D57C8),
+                        Color(0xFF8D53D2)
+                    ),
+
+                onClick =
+                    onVerificationClick
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+
+            // =====================================================
+            // LOCAL CAPTURE DRAFTS
+            // =====================================================
+
+            AgentFeatureCard(
+                shortName =
+                    "DR",
+
+                title =
+                    "Local Capture Drafts",
+
+                description =
+                    "Continue or review locally saved capture drafts.",
+
+                accentColors =
+                    listOf(
+                        Color(0xFFF07B45),
+                        Color(0xFFF3A64A)
+                    ),
+
+                onClick =
+                    onDraftsClick
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        30.dp
+                    )
+            )
+
+
+            // =====================================================
+            // LOG OUT
+            // =====================================================
+
+            Button(
+                onClick = {
+
+                    onLogout()
+                },
+
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(
+                            54.dp
+                        ),
+
+                shape =
+                    RoundedCornerShape(
+                        16.dp
+                    ),
+
+                colors =
+                    ButtonDefaults
+                        .buttonColors(
+                            containerColor =
+                                Color(0xFF171B2D),
+
+                            contentColor =
+                                Color.White
+                        )
             ) {
 
                 Text(
-                    text = "Agent Dashboard",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                    text =
+                        "LOG OUT",
 
-                Spacer(
-                    modifier = Modifier.height(8.dp)
+                    fontSize =
+                        14.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    letterSpacing =
+                        1.sp
                 )
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        16.dp
+                    )
+            )
+
+
+            Text(
+                text =
+                    "AUTHORIZED AGENT ACCESS ONLY",
+
+                modifier =
+                    Modifier.fillMaxWidth(),
+
+                textAlign =
+                    TextAlign.Center,
+
+                fontSize =
+                    9.sp,
+
+                letterSpacing =
+                    1.2.sp,
+
+                color =
+                    Color(0xFF8B8496)
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        28.dp
+                    )
+            )
+        }
+    }
+}
+
+
+// =====================================================================
+// AGENT FEATURE CARD
+// =====================================================================
+
+@Composable
+private fun AgentFeatureCard(
+    shortName: String,
+    title: String,
+    description: String,
+    accentColors: List<Color>,
+    onClick: () -> Unit
+) {
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(
+                RoundedCornerShape(
+                    22.dp
+                )
+            )
+            .background(
+                Color.White.copy(
+                    alpha =
+                        0.95f
+                )
+            )
+            .clickable {
+
+                onClick()
+            }
+            .padding(
+                16.dp
+            )
+    ) {
+
+        Row(
+            modifier =
+                Modifier.fillMaxWidth(),
+
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
+
+
+            Box(
+                modifier = Modifier
+                    .size(
+                        55.dp
+                    )
+                    .clip(
+                        RoundedCornerShape(
+                            17.dp
+                        )
+                    )
+                    .background(
+                        Brush.linearGradient(
+                            colors =
+                                accentColors
+                        )
+                    ),
+
+                contentAlignment =
+                    Alignment.Center
+            ) {
 
                 Text(
-                    text = "Secure Document Management",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text =
+                        shortName,
+
+                    color =
+                        Color.White,
+
+                    fontSize =
+                        15.sp,
+
+                    fontWeight =
+                        FontWeight.Bold
                 )
-
-                Spacer(
-                    modifier = Modifier.height(40.dp)
-                )
-
-                Button(
-                    onClick = {
-                        currentScreen = "CAPTURE"
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Capture Document")
-                }
-
-                Spacer(
-                    modifier = Modifier.height(16.dp)
-                )
-
-                Button(
-                    onClick = {
-                        currentScreen = "MY_DOCUMENTS"
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("My Documents")
-                }
-
-                Spacer(
-                    modifier = Modifier.height(16.dp)
-                )
-
-                Button(
-                    onClick = {
-                        currentScreen = "VERIFICATION_RESULTS"
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Verification Results")
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        context.startActivity(Intent(context, CaptureDraftsActivity::class.java))
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Local Capture Drafts") }
-
-                Spacer(
-                    modifier = Modifier.height(32.dp)
-                )
-
-                Button(
-                    onClick = {
-                        onLogout()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("LOGOUT")
-                }
             }
+
+
+            Spacer(
+                modifier =
+                    Modifier.width(
+                        16.dp
+                    )
+            )
+
+
+            Column(
+                modifier =
+                    Modifier.weight(
+                        1f
+                    )
+            ) {
+
+                Text(
+                    text =
+                        title,
+
+                    fontSize =
+                        16.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    color =
+                        Color(0xFF171A2C)
+                )
+
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            5.dp
+                        )
+                )
+
+
+                Text(
+                    text =
+                        description,
+
+                    fontSize =
+                        12.sp,
+
+                    lineHeight =
+                        17.sp,
+
+                    color =
+                        Color(0xFF817B8B)
+                )
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.width(
+                        10.dp
+                    )
+            )
+
+
+            Text(
+                text =
+                    "›",
+
+                fontSize =
+                    30.sp,
+
+                fontWeight =
+                    FontWeight.Light,
+
+                color =
+                    Color(0xFF8D8598)
+            )
         }
     }
 }

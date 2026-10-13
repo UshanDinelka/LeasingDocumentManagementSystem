@@ -1,42 +1,74 @@
 package com.leasingdocument.app.screens
 
 import android.provider.OpenableColumns
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.foundation.verticalScroll
+
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.leasingdocument.app.network.RetrofitClient
+
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+
 import org.json.JSONObject
 
+import java.util.Locale
 
-// =============================================================
+
+// =====================================================================
 // MAXIMUM UPLOAD SIZE = 20 MB
-// =============================================================
+// =====================================================================
 
 private const val MAX_FILE_SIZE_BYTES =
     20L * 1024L * 1024L
@@ -45,15 +77,16 @@ private const val MAX_FILE_SIZE_BYTES =
 @Composable
 fun UploadDocumentScreen() {
 
-    val context = LocalContext.current
+    val context =
+        LocalContext.current
 
     val coroutineScope =
         rememberCoroutineScope()
 
 
-    // =========================================================
+    // =================================================================
     // STATE
-    // =========================================================
+    // =================================================================
 
     var selectedFileName by remember {
         mutableStateOf("")
@@ -84,9 +117,9 @@ fun UploadDocumentScreen() {
     }
 
 
-    // =========================================================
+    // =================================================================
     // FILE PICKER
-    // =========================================================
+    // =================================================================
 
     val filePicker =
         rememberLauncherForActivityResult(
@@ -94,22 +127,24 @@ fun UploadDocumentScreen() {
                 ActivityResultContracts.GetContent()
         ) { uri ->
 
-            if (uri != null) {
+            if (
+                uri != null
+            ) {
 
-                message = ""
+                message =
+                    ""
 
-                selectedFileBytes = null
+                selectedFileBytes =
+                    null
 
-                selectedFileName = ""
+                selectedFileName =
+                    ""
 
-                selectedFileSize = 0L
+                selectedFileSize =
+                    0L
 
 
                 try {
-
-                    // =================================================
-                    // GET FILE NAME AND FILE SIZE
-                    // =================================================
 
                     val cursor =
                         context
@@ -136,105 +171,111 @@ fun UploadDocumentScreen() {
                             )
 
 
-                        if (it.moveToFirst()) {
+                        if (
+                            it.moveToFirst()
+                        ) {
 
-                            if (nameIndex >= 0) {
+                            if (
+                                nameIndex >= 0
+                            ) {
 
                                 selectedFileName =
-                                    it.getString(nameIndex)
+                                    it.getString(
+                                        nameIndex
+                                    )
                                         ?: ""
                             }
 
 
                             if (
                                 sizeIndex >= 0 &&
-                                !it.isNull(sizeIndex)
+                                !it.isNull(
+                                    sizeIndex
+                                )
                             ) {
 
                                 selectedFileSize =
-                                    it.getLong(sizeIndex)
+                                    it.getLong(
+                                        sizeIndex
+                                    )
                             }
                         }
                     }
 
-
-                    // =================================================
-                    // CLIENT SIDE 20 MB SIZE CHECK
-                    // =================================================
 
                     if (
                         selectedFileSize >
                         MAX_FILE_SIZE_BYTES
                     ) {
 
-                        selectedFileBytes = null
+                        selectedFileBytes =
+                            null
 
                         message =
                             "Selected file is too large. Maximum file size is 20 MB."
 
                     } else {
 
-                        // =============================================
-                        // READ FILE ONLY IF SIZE IS ACCEPTABLE
-                        // =============================================
-
                         val bytes =
                             context
                                 .contentResolver
-                                .openInputStream(uri)
-                                ?.use { inputStream ->
+                                .openInputStream(
+                                    uri
+                                )
+                                ?.use {
+                                        inputStream ->
 
                                     inputStream.readBytes()
                                 }
 
 
-                        if (bytes == null) {
+                        if (
+                            bytes == null
+                        ) {
 
-                            selectedFileBytes = null
+                            selectedFileBytes =
+                                null
 
                             message =
                                 "Unable to read selected file"
 
+                        } else if (
+                            bytes.size.toLong() >
+                            MAX_FILE_SIZE_BYTES
+                        ) {
+
+                            selectedFileBytes =
+                                null
+
+                            selectedFileSize =
+                                bytes.size.toLong()
+
+                            message =
+                                "Selected file is too large. Maximum file size is 20 MB."
+
                         } else {
 
-                            // =========================================
-                            // SECOND SIZE CHECK
-                            //
-                            // Some providers may not return file size
-                            // through OpenableColumns.SIZE.
-                            // =========================================
+                            selectedFileBytes =
+                                bytes
 
-                            if (
-                                bytes.size.toLong() >
-                                MAX_FILE_SIZE_BYTES
-                            ) {
-
-                                selectedFileBytes = null
-
-                                selectedFileSize =
-                                    bytes.size.toLong()
-
-                                message =
-                                    "Selected file is too large. Maximum file size is 20 MB."
-
-                            } else {
-
-                                selectedFileBytes =
-                                    bytes
-
-                                selectedFileSize =
-                                    bytes.size.toLong()
-                            }
+                            selectedFileSize =
+                                bytes.size.toLong()
                         }
                     }
 
-                } catch (e: Exception) {
 
-                    selectedFileBytes = null
+                } catch (
+                    e: Exception
+                ) {
 
-                    selectedFileName = ""
+                    selectedFileBytes =
+                        null
 
-                    selectedFileSize = 0L
+                    selectedFileName =
+                        ""
+
+                    selectedFileSize =
+                        0L
 
                     message =
                         "Unable to read selected file"
@@ -243,406 +284,1055 @@ fun UploadDocumentScreen() {
         }
 
 
-    // =========================================================
-    // SCREEN
-    // =========================================================
+    // =================================================================
+    // ROOT
+    // =================================================================
 
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(24.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors =
+                        listOf(
+                            Color(0xFFFFFCFB),
+                            Color(0xFFFFF8FB),
+                            Color(0xFFF8F2FF)
+                        )
+                )
+            )
     ) {
 
 
-        Text(
-            text = "Upload Document",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // =============================================================
+        // BACKGROUND DECORATION
+        // =============================================================
 
-
-        Spacer(
+        Canvas(
             modifier =
-                Modifier.height(24.dp)
-        )
-
-
-        // =====================================================
-        // SELECT DOCUMENT
-        // =====================================================
-
-        Button(
-            onClick = {
-
-                filePicker.launch("*/*")
-            },
-
-            enabled = !isLoading,
-
-            modifier =
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxSize()
         ) {
 
-            Text("Select Document")
-        }
+            val w =
+                size.width
+
+            val h =
+                size.height
 
 
-        Spacer(
-            modifier =
-                Modifier.height(12.dp)
-        )
+            val topShape =
+                Path().apply {
+
+                    moveTo(
+                        0f,
+                        0f
+                    )
+
+                    lineTo(
+                        w * 0.74f,
+                        0f
+                    )
+
+                    cubicTo(
+                        w * 0.56f,
+                        h * 0.025f,
+
+                        w * 0.36f,
+                        h * 0.050f,
+
+                        0f,
+                        h * 0.14f
+                    )
+
+                    close()
+                }
 
 
-        // =====================================================
-        // SELECTED FILE NAME
-        // =====================================================
+            drawPath(
+                path =
+                    topShape,
 
-        if (
-            selectedFileName.isNotEmpty()
-        ) {
+                brush =
+                    Brush.linearGradient(
+                        colors =
+                            listOf(
+                                Color(0xFFFFD2B5)
+                                    .copy(
+                                        alpha =
+                                            0.48f
+                                    ),
 
-            Text(
-                text =
-                    "Selected: $selectedFileName"
+                                Color(0xFFFFE8DF)
+                                    .copy(
+                                        alpha =
+                                            0.20f
+                                    ),
+
+                                Color.Transparent
+                            )
+                    )
             )
 
 
-            if (
-                selectedFileSize > 0L
-            ) {
+            val accent =
+                Path().apply {
 
-                val sizeInMb =
-                    selectedFileSize.toDouble() /
-                            (1024.0 * 1024.0)
+                    moveTo(
+                        0f,
+                        h * 0.082f
+                    )
 
-                Text(
-                    text =
-                        "Size: %.2f MB".format(
-                            sizeInMb
-                        )
-                )
-            }
+                    cubicTo(
+                        w * 0.20f,
+                        h * 0.054f,
+
+                        w * 0.38f,
+                        h * 0.075f,
+
+                        w * 0.60f,
+                        h * 0.020f
+                    )
+                }
+
+
+            drawPath(
+                path =
+                    accent,
+
+                color =
+                    Color(0xFFFF8B42)
+                        .copy(
+                            alpha =
+                                0.68f
+                        ),
+
+                style =
+                    Stroke(
+                        width =
+                            1.dp.toPx()
+                    )
+            )
+
+
+            drawCircle(
+                brush =
+                    Brush.radialGradient(
+                        colors =
+                            listOf(
+                                Color(0xFF9F47DD)
+                                    .copy(
+                                        alpha =
+                                            0.08f
+                                    ),
+
+                                Color.Transparent
+                            )
+                    ),
+
+                radius =
+                    w * 0.80f,
+
+                center =
+                    Offset(
+                        x =
+                            w * 0.55f,
+
+                        y =
+                            h
+                    )
+            )
         }
 
 
-        Spacer(
-            modifier =
-                Modifier.height(20.dp)
-        )
+        // =============================================================
+        // PAGE CONTENT
+        // =============================================================
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .verticalScroll(
+                    rememberScrollState()
+                )
+                .padding(
+                    horizontal =
+                        20.dp
+                )
+        ) {
 
 
-        // =====================================================
-        // CUSTOMER ID
-        // =====================================================
-
-        OutlinedTextField(
-            value = customerId,
-
-            onValueChange = {
-                customerId = it
-            },
-
-            label = {
-                Text("Customer ID")
-            },
-
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType =
-                        KeyboardType.Number
-                ),
-
-            singleLine = true,
-
-            enabled = !isLoading,
-
-            modifier =
-                Modifier.fillMaxWidth()
-        )
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
 
 
-        Spacer(
-            modifier =
-                Modifier.height(16.dp)
-        )
+            Text(
+                text =
+                    "Upload Document",
+
+                fontSize =
+                    27.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color(0xFF171A2C)
+            )
 
 
-        // =====================================================
-        // DOCUMENT TYPE ID
-        // =====================================================
-
-        OutlinedTextField(
-            value = documentTypeId,
-
-            onValueChange = {
-                documentTypeId = it
-            },
-
-            label = {
-                Text("Document Type ID")
-            },
-
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType =
-                        KeyboardType.Number
-                ),
-
-            singleLine = true,
-
-            enabled = !isLoading,
-
-            modifier =
-                Modifier.fillMaxWidth()
-        )
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        4.dp
+                    )
+            )
 
 
-        Spacer(
-            modifier =
-                Modifier.height(24.dp)
-        )
+            Text(
+                text =
+                    "Upload an existing leasing document securely.",
+
+                fontSize =
+                    12.sp,
+
+                color =
+                    Color(0xFF817A8B)
+            )
 
 
-        // =====================================================
-        // UPLOAD BUTTON
-        // =====================================================
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        24.dp
+                    )
+            )
 
-        Button(
-            onClick = {
 
+            // =========================================================
+            // HERO
+            // =========================================================
 
-                // =================================================
-                // FILE SIZE VALIDATION
-                // =================================================
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(
+                        RoundedCornerShape(
+                            24.dp
+                        )
+                    )
+                    .background(
+                        Brush.horizontalGradient(
+                            colors =
+                                listOf(
+                                    Color(0xFF6750B6),
+                                    Color(0xFF9650C2),
+                                    Color(0xFFD14E94)
+                                )
+                        )
+                    )
+                    .padding(
+                        20.dp
+                    )
+            ) {
 
-                if (
-                    selectedFileSize >
-                    MAX_FILE_SIZE_BYTES
+                Row(
+                    verticalAlignment =
+                        Alignment.CenterVertically
                 ) {
 
-                    message =
-                        "Upload failed: File size must not exceed 20 MB"
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(
+                                    54.dp
+                                )
+                                .clip(
+                                    RoundedCornerShape(
+                                        17.dp
+                                    )
+                                )
+                                .background(
+                                    Color.White.copy(
+                                        alpha =
+                                            0.16f
+                                    )
+                                ),
+
+                        contentAlignment =
+                            Alignment.Center
+                    ) {
+
+                        Text(
+                            text =
+                                "UP",
+
+                            color =
+                                Color.White,
+
+                            fontSize =
+                                13.sp,
+
+                            fontWeight =
+                                FontWeight.Bold
+                        )
+                    }
 
 
-                    // =================================================
-                    // REQUIRED FIELDS
-                    // =================================================
+                    Spacer(
+                        modifier =
+                            Modifier.width(
+                                14.dp
+                            )
+                    )
 
-                } else if (
-                    selectedFileBytes == null ||
-                    selectedFileName.isBlank() ||
-                    customerId.isBlank() ||
-                    documentTypeId.isBlank()
+
+                    Column {
+
+                        Text(
+                            text =
+                                "Secure Upload",
+
+                            color =
+                                Color.White,
+
+                            fontSize =
+                                18.sp,
+
+                            fontWeight =
+                                FontWeight.Bold
+                        )
+
+
+                        Spacer(
+                            modifier =
+                                Modifier.height(
+                                    4.dp
+                                )
+                        )
+
+
+                        Text(
+                            text =
+                                "Maximum file size 20 MB",
+
+                            color =
+                                Color.White.copy(
+                                    alpha =
+                                        0.80f
+                                ),
+
+                            fontSize =
+                                11.sp
+                        )
+                    }
+                }
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        18.dp
+                    )
+            )
+
+
+            // =========================================================
+            // SELECT FILE
+            // =========================================================
+
+            Text(
+                text =
+                    "Document File",
+
+                fontSize =
+                    13.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color(0xFF2C2738)
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        9.dp
+                    )
+            )
+
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(
+                        RoundedCornerShape(
+                            19.dp
+                        )
+                    )
+                    .background(
+                        Color.White.copy(
+                            alpha =
+                                0.96f
+                        )
+                    )
+                    .clickable(
+                        enabled =
+                            !isLoading
+                    ) {
+
+                        filePicker.launch(
+                            "*/*"
+                        )
+                    }
+                    .padding(
+                        17.dp
+                    )
+            ) {
+
+                Row(
+                    verticalAlignment =
+                        Alignment.CenterVertically
                 ) {
 
-                    message =
-                        "Please select a document and enter all details"
-
-
-                    // =================================================
-                    // NUMERIC ID VALIDATION
-                    // =================================================
-
-                } else if (
-                    customerId.toLongOrNull() == null ||
-                    documentTypeId.toLongOrNull() == null
-                ) {
-
-                    message =
-                        "Customer ID and Document Type ID must be numbers"
-
-
-                } else {
-
-
-                    coroutineScope.launch {
-
-                        isLoading = true
-
-                        message = ""
-
-
-                        try {
-
-                            // =====================================
-                            // FILE REQUEST BODY
-                            // =====================================
-
-                            val fileRequestBody =
-                                selectedFileBytes!!
-                                    .toRequestBody(
-                                        "application/octet-stream"
-                                            .toMediaTypeOrNull()
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(
+                                    45.dp
+                                )
+                                .clip(
+                                    RoundedCornerShape(
+                                        14.dp
                                     )
+                                )
+                                .background(
+                                    Color(0xFFF2ECFA)
+                                ),
+
+                        contentAlignment =
+                            Alignment.Center
+                    ) {
+
+                        Text(
+                            text =
+                                "FILE",
+
+                            fontSize =
+                                9.sp,
+
+                            fontWeight =
+                                FontWeight.Bold,
+
+                            color =
+                                Color(0xFF7650BD)
+                        )
+                    }
 
 
-                            val filePart =
-                                MultipartBody.Part
-                                    .createFormData(
-                                        "file",
-                                        selectedFileName,
-                                        fileRequestBody
-                                    )
+                    Spacer(
+                        modifier =
+                            Modifier.width(
+                                13.dp
+                            )
+                    )
 
 
-                            // =====================================
-                            // CUSTOMER ID
-                            // =====================================
+                    Column(
+                        modifier =
+                            Modifier.weight(
+                                1f
+                            )
+                    ) {
 
-                            val customerIdBody =
-                                customerId
-                                    .toRequestBody(
-                                        "text/plain"
-                                            .toMediaTypeOrNull()
-                                    )
-
-
-                            // =====================================
-                            // DOCUMENT TYPE ID
-                            // =====================================
-
-                            val documentTypeIdBody =
-                                documentTypeId
-                                    .toRequestBody(
-                                        "text/plain"
-                                            .toMediaTypeOrNull()
-                                    )
-
-
-                            // =====================================
-                            // BACKEND API CALL
-                            // =====================================
-
-                            val response =
-                                RetrofitClient
-                                    .apiService
-                                    .uploadDocument(
-                                        file = filePart,
-                                        customerId =
-                                            customerIdBody,
-                                        documentTypeId =
-                                            documentTypeIdBody
-                                    )
-
-
-                            // =====================================
-                            // SUCCESS
-                            // =====================================
-
-                            if (
-                                response.isSuccessful
-                            ) {
-
-                                message =
-                                    "Document uploaded successfully"
-
-
-                                selectedFileName = ""
-
-                                selectedFileBytes = null
-
-                                selectedFileSize = 0L
-
-                                customerId = ""
-
-                                documentTypeId = ""
-
-
-                            } else {
-
-
-                                // =================================
-                                // FILE TOO LARGE
-                                // =================================
-
+                        Text(
+                            text =
                                 if (
-                                    response.code() == 413
+                                    selectedFileName.isBlank()
                                 ) {
 
-                                    message =
-                                        "Upload failed: File size must not exceed 20 MB"
+                                    "Select Document"
 
                                 } else {
 
-                                    val errorBody =
-                                        response
-                                            .errorBody()
-                                            ?.string()
+                                    selectedFileName
+                                },
+
+                            fontSize =
+                                13.sp,
+
+                            fontWeight =
+                                FontWeight.Bold,
+
+                            color =
+                                Color(0xFF221E31),
+
+                            maxLines =
+                                2,
+
+                            overflow =
+                                TextOverflow.Ellipsis
+                        )
 
 
-                                    val backendMessage =
-                                        getBackendErrorMessage(
-                                            errorBody =
-                                                errorBody,
-                                            statusCode =
-                                                response.code()
-                                        )
+                        Spacer(
+                            modifier =
+                                Modifier.height(
+                                    3.dp
+                                )
+                        )
 
 
-                                    message =
-                                        "Upload failed: $backendMessage"
-                                }
-                            }
+                        Text(
+                            text =
+                                if (
+                                    selectedFileName.isBlank()
+                                ) {
+
+                                    "Tap to browse files"
+
+                                } else {
+
+                                    val sizeInMb =
+                                        selectedFileSize.toDouble() /
+                                                (
+                                                        1024.0 *
+                                                                1024.0
+                                                        )
+
+                                    String.format(
+                                        Locale.US,
+                                        "%.2f MB",
+                                        sizeInMb
+                                    )
+                                },
+
+                            fontSize =
+                                10.sp,
+
+                            color =
+                                Color(0xFF817A8B)
+                        )
+                    }
 
 
-                        } catch (
-                            e: Exception
+                    Text(
+                        text =
+                            "›",
+
+                        fontSize =
+                            28.sp,
+
+                        color =
+                            Color(0xFF8C8494)
+                    )
+                }
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        18.dp
+                    )
+            )
+
+
+            // =========================================================
+            // CUSTOMER ID
+            // =========================================================
+
+            OutlinedTextField(
+                value =
+                    customerId,
+
+                onValueChange = {
+
+                    if (
+                        it.all {
+                                character ->
+                            character.isDigit()
+                        }
+                    ) {
+
+                        customerId =
+                            it
+                    }
+                },
+
+                label = {
+                    Text(
+                        "Customer ID"
+                    )
+                },
+
+                keyboardOptions =
+                    KeyboardOptions(
+                        keyboardType =
+                            KeyboardType.Number
+                    ),
+
+                singleLine =
+                    true,
+
+                enabled =
+                    !isLoading,
+
+                shape =
+                    RoundedCornerShape(
+                        16.dp
+                    ),
+
+                modifier =
+                    Modifier.fillMaxWidth()
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+
+            // =========================================================
+            // DOCUMENT TYPE ID
+            // =========================================================
+
+            OutlinedTextField(
+                value =
+                    documentTypeId,
+
+                onValueChange = {
+
+                    if (
+                        it.all {
+                                character ->
+                            character.isDigit()
+                        }
+                    ) {
+
+                        documentTypeId =
+                            it
+                    }
+                },
+
+                label = {
+                    Text(
+                        "Document Type ID"
+                    )
+                },
+
+                keyboardOptions =
+                    KeyboardOptions(
+                        keyboardType =
+                            KeyboardType.Number
+                    ),
+
+                singleLine =
+                    true,
+
+                enabled =
+                    !isLoading,
+
+                shape =
+                    RoundedCornerShape(
+                        16.dp
+                    ),
+
+                modifier =
+                    Modifier.fillMaxWidth()
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        20.dp
+                    )
+            )
+
+
+            // =========================================================
+            // UPLOAD BUTTON
+            // =========================================================
+
+            val canUpload =
+                !isLoading &&
+                        selectedFileBytes != null &&
+                        selectedFileName.isNotBlank() &&
+                        customerId.isNotBlank() &&
+                        documentTypeId.isNotBlank()
+
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(
+                        56.dp
+                    )
+                    .clip(
+                        RoundedCornerShape(
+                            18.dp
+                        )
+                    )
+                    .background(
+                        if (
+                            canUpload
+                        ) {
+
+                            Brush.horizontalGradient(
+                                colors =
+                                    listOf(
+                                        Color(0xFF6E50B8),
+                                        Color(0xFF9650C3),
+                                        Color(0xFFD04E93)
+                                    )
+                            )
+
+                        } else {
+
+                            Brush.horizontalGradient(
+                                colors =
+                                    listOf(
+                                        Color(0xFFD7D0DE),
+                                        Color(0xFFD7D0DE)
+                                    )
+                            )
+                        }
+                    )
+                    .clickable(
+                        enabled =
+                            canUpload
+                    ) {
+
+
+                        // =================================================
+                        // FILE SIZE VALIDATION
+                        // =================================================
+
+                        if (
+                            selectedFileSize >
+                            MAX_FILE_SIZE_BYTES
                         ) {
 
                             message =
-                                "Cannot connect to server"
+                                "Upload failed: File size must not exceed 20 MB"
+
+                        } else if (
+                            selectedFileBytes == null ||
+                            selectedFileName.isBlank() ||
+                            customerId.isBlank() ||
+                            documentTypeId.isBlank()
+                        ) {
+
+                            message =
+                                "Please select a document and enter all details"
+
+                        } else if (
+                            customerId.toLongOrNull() == null ||
+                            documentTypeId.toLongOrNull() == null
+                        ) {
+
+                            message =
+                                "Customer ID and Document Type ID must be numbers"
+
+                        } else {
+
+
+                            coroutineScope.launch {
+
+                                isLoading =
+                                    true
+
+                                message =
+                                    ""
+
+
+                                try {
+
+                                    val fileRequestBody =
+                                        selectedFileBytes!!
+                                            .toRequestBody(
+                                                "application/octet-stream"
+                                                    .toMediaTypeOrNull()
+                                            )
+
+
+                                    val filePart =
+                                        MultipartBody.Part
+                                            .createFormData(
+                                                "file",
+                                                selectedFileName,
+                                                fileRequestBody
+                                            )
+
+
+                                    val customerIdBody =
+                                        customerId
+                                            .toRequestBody(
+                                                "text/plain"
+                                                    .toMediaTypeOrNull()
+                                            )
+
+
+                                    val documentTypeIdBody =
+                                        documentTypeId
+                                            .toRequestBody(
+                                                "text/plain"
+                                                    .toMediaTypeOrNull()
+                                            )
+
+
+                                    val response =
+                                        RetrofitClient
+                                            .apiService
+                                            .uploadDocument(
+                                                file =
+                                                    filePart,
+
+                                                customerId =
+                                                    customerIdBody,
+
+                                                documentTypeId =
+                                                    documentTypeIdBody
+                                            )
+
+
+                                    if (
+                                        response.isSuccessful
+                                    ) {
+
+                                        message =
+                                            "Document uploaded successfully"
+
+                                        selectedFileName =
+                                            ""
+
+                                        selectedFileBytes =
+                                            null
+
+                                        selectedFileSize =
+                                            0L
+
+                                        customerId =
+                                            ""
+
+                                        documentTypeId =
+                                            ""
+
+                                    } else if (
+                                        response.code() ==
+                                        413
+                                    ) {
+
+                                        message =
+                                            "Upload failed: File size must not exceed 20 MB"
+
+                                    } else {
+
+                                        val errorBody =
+                                            response
+                                                .errorBody()
+                                                ?.string()
+
+
+                                        val backendMessage =
+                                            getBackendErrorMessage(
+                                                errorBody =
+                                                    errorBody,
+
+                                                statusCode =
+                                                    response.code()
+                                            )
+
+
+                                        message =
+                                            "Upload failed: $backendMessage"
+                                    }
+
+
+                                } catch (
+                                    e: CancellationException
+                                ) {
+
+                                    throw e
+
+                                } catch (
+                                    e: Exception
+                                ) {
+
+                                    message =
+                                        "Cannot connect to server"
+
+                                } finally {
+
+                                    isLoading =
+                                        false
+                                }
+                            }
                         }
+                    },
 
+                contentAlignment =
+                    Alignment.Center
+            ) {
 
-                        isLoading = false
-                    }
+                if (
+                    isLoading
+                ) {
+
+                    CircularProgressIndicator(
+                        modifier =
+                            Modifier.size(
+                                22.dp
+                            ),
+
+                        strokeWidth =
+                            2.dp,
+
+                        color =
+                            Color.White
+                    )
+
+                } else {
+
+                    Text(
+                        text =
+                            "UPLOAD DOCUMENT",
+
+                        color =
+                            Color.White,
+
+                        fontSize =
+                            12.sp,
+
+                        fontWeight =
+                            FontWeight.Bold,
+
+                        letterSpacing =
+                            0.5.sp
+                    )
                 }
-            },
-
-            enabled = !isLoading,
-
-            modifier =
-                Modifier.fillMaxWidth()
-        ) {
-
-
-            if (isLoading) {
-
-                CircularProgressIndicator()
-
-            } else {
-
-                Text("UPLOAD")
             }
-        }
 
 
-        Spacer(
-            modifier =
-                Modifier.height(16.dp)
-        )
+            // =========================================================
+            // MESSAGE
+            // =========================================================
+
+            if (
+                message.isNotBlank()
+            ) {
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            15.dp
+                        )
+                )
 
 
-        // =====================================================
-        // MESSAGE
-        // =====================================================
+                UploadMessageCard(
+                    message =
+                        message
+                )
+            }
 
-        if (
-            message.isNotEmpty()
-        ) {
 
-            Text(
-                text = message
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        30.dp
+                    )
             )
         }
     }
 }
 
 
-// =================================================================
+// =====================================================================
+// MESSAGE CARD
+// =====================================================================
+
+@Composable
+private fun UploadMessageCard(
+    message: String
+) {
+
+    val success =
+        message.contains(
+            "success",
+            ignoreCase =
+                true
+        )
+
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(
+                RoundedCornerShape(
+                    16.dp
+                )
+            )
+            .background(
+                if (
+                    success
+                ) {
+
+                    Color(0xFFEAF7EF)
+
+                } else {
+
+                    Color(0xFFFFEEF1)
+                }
+            )
+            .padding(
+                14.dp
+            )
+    ) {
+
+        Text(
+            text =
+                message,
+
+            fontSize =
+                12.sp,
+
+            lineHeight =
+                17.sp,
+
+            fontWeight =
+                FontWeight.SemiBold,
+
+            color =
+                if (
+                    success
+                ) {
+
+                    Color(0xFF247148)
+
+                } else {
+
+                    Color(0xFFA13A4B)
+                }
+        )
+    }
+}
+
+
+// =====================================================================
 // EXTRACT SAFE BACKEND ERROR MESSAGE
-// =================================================================
+// =====================================================================
 
 private fun getBackendErrorMessage(
     errorBody: String?,
@@ -650,12 +1340,9 @@ private fun getBackendErrorMessage(
 ): String {
 
 
-    // =============================================================
-    // SPECIAL HTTP STATUS MESSAGES
-    // =============================================================
-
     if (
-        statusCode == 413
+        statusCode ==
+        413
     ) {
 
         return "File size must not exceed 20 MB"
@@ -666,7 +1353,9 @@ private fun getBackendErrorMessage(
         errorBody.isNullOrBlank()
     ) {
 
-        return when (statusCode) {
+        return when (
+            statusCode
+        ) {
 
             400 ->
                 "Invalid upload request"
@@ -686,14 +1375,12 @@ private fun getBackendErrorMessage(
     }
 
 
-    // =============================================================
-    // PARSE SPRING BOOT JSON ERROR RESPONSE
-    // =============================================================
-
     return try {
 
         val json =
-            JSONObject(errorBody)
+            JSONObject(
+                errorBody
+            )
 
 
         var serverMessage =
@@ -719,7 +1406,9 @@ private fun getBackendErrorMessage(
             serverMessage.isBlank()
         ) {
 
-            return when (statusCode) {
+            return when (
+                statusCode
+            ) {
 
                 400 ->
                     "Invalid upload request"
@@ -739,24 +1428,21 @@ private fun getBackendErrorMessage(
         }
 
 
-        // =========================================================
-        // ResponseStatusException may return:
-        //
-        // 400 BAD_REQUEST "Only JPG, JPEG, PNG and PDF..."
-        //
-        // Extract only text inside quotes.
-        // =========================================================
-
         val firstQuote =
-            serverMessage.indexOf('"')
+            serverMessage.indexOf(
+                '"'
+            )
 
         val lastQuote =
-            serverMessage.lastIndexOf('"')
+            serverMessage.lastIndexOf(
+                '"'
+            )
 
 
         if (
             firstQuote >= 0 &&
-            lastQuote > firstQuote
+            lastQuote >
+            firstQuote
         ) {
 
             serverMessage.substring(
@@ -774,7 +1460,9 @@ private fun getBackendErrorMessage(
         e: Exception
     ) {
 
-        when (statusCode) {
+        when (
+            statusCode
+        ) {
 
             400 ->
                 "Invalid upload request"
