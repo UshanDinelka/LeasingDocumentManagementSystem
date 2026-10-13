@@ -71,11 +71,12 @@ fun AdminDashboard(
 
         "ANALYSIS" -> {
 
-            AdminSubScreenContainer(
-                title = "Alteration Analysis",
-                onBack = {
-                    currentScreen = "DASHBOARD"
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
+                    )
             ) {
 
                 AlterationAnalysisScreen()
