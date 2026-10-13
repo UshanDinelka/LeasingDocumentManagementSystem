@@ -8,27 +8,29 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
+
 object RetrofitClient {
 
     // =========================================================
-    // BASE URL
+    // HTTPS BACKEND
     // =========================================================
     //
-    // Android Emulator -> Windows PC localhost
+    // Spring Boot HTTPS server:
+    // https://localhost:8443/
     //
-    // 10.0.2.2 is the special host address used by the
-    // Android Emulator to access services running on the PC.
+    // Physical Android device / local network:
+    // https://192.168.8.101:8443/
     //
-    // Spring Boot backend:
-    // http://localhost:8080
+    // Cleartext HTTP is disabled in AndroidManifest.xml and
+    // network_security_config.xml.
     //
-    // Android Emulator:
-    // http://10.0.2.2:8080/
+    // The local development certificate is trusted through:
+    // res/raw/leasing_backend.crt
     //
     // =========================================================
 
     private const val BASE_URL =
-        "http://10.0.2.2:8080/"
+        "https://192.168.8.101:8443/"
 
 
     // =========================================================
@@ -64,7 +66,17 @@ object RetrofitClient {
 
 
     // =========================================================
-    // HTTP LOGGING
+    // LOGGING
+    // =========================================================
+    //
+    // Logging is enabled only for DEBUG builds.
+    //
+    // Authorization header is redacted so JWT tokens are not
+    // exposed in Logcat.
+    //
+    // BASIC logging records request method/status information
+    // without logging sensitive request/response bodies.
+    //
     // =========================================================
 
     private val loggingInterceptor =
@@ -117,9 +129,7 @@ object RetrofitClient {
 
             .apply {
 
-                if (
-                    BuildConfig.DEBUG
-                ) {
+                if (BuildConfig.DEBUG) {
 
                     addInterceptor(
                         loggingInterceptor
@@ -132,7 +142,7 @@ object RetrofitClient {
 
 
     // =========================================================
-    // RETROFIT
+    // RETROFIT API SERVICE
     // =========================================================
 
     val apiService:
