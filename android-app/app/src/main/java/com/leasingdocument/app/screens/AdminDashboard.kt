@@ -85,11 +85,12 @@ fun AdminDashboard(
 
         "AGENTS" -> {
 
-            AdminSubScreenContainer(
-                title = "Manage Agents",
-                onBack = {
-                    currentScreen = "DASHBOARD"
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Color(0xFFFCF9FF)
+                    )
             ) {
 
                 ManageAgentsScreen()

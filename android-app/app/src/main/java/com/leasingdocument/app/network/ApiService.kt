@@ -46,6 +46,16 @@ interface ApiService {
     @GET("api/agents")
     suspend fun getAgents(): Response<List<Agent>>
 
+    @POST("api/agents/{id}/disable")
+    suspend fun disableAgent(
+        @Path("id") agentId: Long
+    ): Response<Agent>
+
+    @POST("api/agents/{id}/reactivate")
+    suspend fun reactivateAgent(
+        @Path("id") agentId: Long
+    ): Response<Agent>
+
 
     // =========================================================
     // AUDIT LOGS
@@ -182,15 +192,26 @@ interface ApiService {
 
     @GET("api/integrity-results")
     suspend fun getIntegrityResults(): Response<List<IntegrityResult>>
+
+
+    // =========================================================
+    // DOCUMENT ANALYSIS
+    // =========================================================
+
     @POST("api/analysis/documents/{id}")
-    suspend fun analyzeDocument(@Path("id") documentId: Long,
-        @Body request: AnalysisRequest): Response<AlterationResult>
+    suspend fun analyzeDocument(
+        @Path("id") documentId: Long,
+        @Body request: AnalysisRequest
+    ): Response<AlterationResult>
 
     @GET("api/analysis/results/{id}/report")
-    suspend fun getAnalysisReport(@Path("id") resultId: Long): Response<ResponseBody>
+    suspend fun getAnalysisReport(
+        @Path("id") resultId: Long
+    ): Response<ResponseBody>
 
     @POST("api/analysis/results/{id}/review")
-    suspend fun reviewAnalysis(@Path("id") resultId: Long,
-        @Body request: AnalysisReviewRequest): Response<AlterationResult>
-
+    suspend fun reviewAnalysis(
+        @Path("id") resultId: Long,
+        @Body request: AnalysisReviewRequest
+    ): Response<AlterationResult>
 }
