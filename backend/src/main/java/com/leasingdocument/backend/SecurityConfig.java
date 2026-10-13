@@ -38,15 +38,40 @@ public class SecurityConfig {
 
         http
 
-                // REST API uses JWT rather than CSRF tokens.
+                // =================================================
+                // REST / JWT SECURITY
+                // =================================================
+
                 .csrf(
                         csrf ->
                                 csrf.disable()
                 )
 
+                .httpBasic(
+                        httpBasic ->
+                                httpBasic.disable()
+                )
 
-                // The application does not use server-side
-                // HTTP sessions for authentication.
+                .formLogin(
+                        formLogin ->
+                                formLogin.disable()
+                )
+
+                .logout(
+                        logout ->
+                                logout.disable()
+                )
+
+                .requestCache(
+                        requestCache ->
+                                requestCache.disable()
+                )
+
+
+                // =================================================
+                // STATELESS SESSION MANAGEMENT
+                // =================================================
+
                 .sessionManagement(
                         session ->
                                 session.sessionCreationPolicy(
@@ -68,7 +93,7 @@ public class SecurityConfig {
                                 )
                                 .permitAll()
 
-                                // Allow Spring's error endpoint.
+                                // Allow Spring Boot's error endpoint.
                                 .requestMatchers(
                                         "/error"
                                 )
