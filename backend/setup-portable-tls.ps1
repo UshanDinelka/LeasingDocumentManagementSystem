@@ -1,5 +1,4 @@
 param(
-    [Parameter(Mandatory = $true)]
     [string]$BackendIp
 )
 
@@ -8,35 +7,37 @@ $ErrorActionPreference = "Stop"
 $BackendDir = $PSScriptRoot
 $ProjectDir = Split-Path $BackendDir -Parent
 
-$CaStore =
-    Join-Path $BackendDir "docsecure-dev-ca.p12"
+$CaStore = Join-Path $BackendDir "docsecure-dev-ca.p12"
+$CaCert = Join-Path $BackendDir "docsecure-dev-ca.crt"
 
-$CaCert =
-    Join-Path $BackendDir "docsecure-dev-ca.crt"
-
-$TempStore =
-    Join-Path $BackendDir "keystore-portable.p12"
-
-$Csr =
-    Join-Path $BackendDir "leasing-backend.csr"
-
-$SignedCert =
-    Join-Path $BackendDir "leasing-backend-signed.crt"
+$TempStore = Join-Path $BackendDir "keystore-portable.p12"
+$Csr = Join-Path $BackendDir "leasing-backend.csr"
+$SignedCert = Join-Path $BackendDir "leasing-backend-signed.crt"
 
 $ServerStore =
-    Join-Path `
-        $BackendDir `
-        "src\main\resources\keystore.p12"
+    Join-Path $BackendDir "src\main\resources\keystore.p12"
 
 $ServerBackup =
-    Join-Path `
-        $BackendDir `
-        "src\main\resources\keystore-before-portable-tls.p12"
+    Join-Path $BackendDir "src\main\resources\keystore-before-portable-tls.p12"
 
 $AndroidCa =
-    Join-Path `
-        $ProjectDir `
+    Join-Path $ProjectDir `
         "android-app\app\src\main\res\raw\docsecure_dev_ca.crt"
+
+$AndroidLocalProperties =
+    Join-Path $ProjectDir `
+        "android-app\local.properties"
+
+
+function New-RandomPassword {
+
+    $bytes = New-Object byte[] 32
+
+    [Security.Cryptography.RandomNumberGenerator]::Create().
+        GetBytes($bytes)
+
+    [Convert]::ToBase64String($bytes)
+}
 
 
 function Run-Keytool {
@@ -54,46 +55,55 @@ function Run-Keytool {
 }
 
 
-function Secure-To-Plain {
-
-    param(
-        [Security.SecureString]$Value
-    )
-
-    $ptr =
-        [Runtime.InteropServices.Marshal]::SecureStringToBSTR(
-            $Value
-        )
-
-    try {
-
-        return `
-            [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
-                $ptr
-            )
-    }
-    finally {
-
-        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR(
-            $ptr
-        )
-    }
-}
-
-
 Write-Host ""
-Write-Host "DOC SECURE Portable TLS Setup"
-Write-Host "============================="
+Write-Host "DOC SECURE Portable Machine Setup"
+Write-Host "================================="
 Write-Host ""
 
 
 # =============================================================
-# VALIDATION
+# REQUIREMENTS
 # =============================================================
 
 if (-not (Get-Command keytool -ErrorAction SilentlyContinue)) {
 
-    throw "keytool not found. JDK 17+ is required."
+    throw "keytool not found. Install/use JDK 17 or newer."
+}
+
+
+# =============================================================
+# AUTO-DETECT BACKEND IPV4
+# =============================================================
+
+if ([string]::IsNullOrWhiteSpace($BackendIp)) {
+
+    $BackendIp =
+        Get-NetIPConfiguration |
+        Where-Object {
+            $_.NetAdapter.Status -eq "Up" -and
+            $_.IPv4DefaultGateway -ne $null
+        } |
+        ForEach-Object {
+            $_.IPv4Address.IPAddress
+        } |
+        Where-Object {
+            $_ -and
+            $_ -notlike "127.*" -and
+            $_ -notlike "169.254*"
+        } |
+        Select-Object -First 1
+}
+
+
+if ([string]::IsNullOrWhiteSpace($BackendIp)) {
+
+    throw @"
+Unable to detect backend IPv4 address.
+
+Run:
+
+.\setup-portable-tls.ps1 -BackendIp <YOUR-IP>
+"@
 }
 
 
@@ -106,7 +116,7 @@ if (
     )
 ) {
 
-    throw "Invalid backend IP: $BackendIp"
+    throw "Invalid IPv4 address: $BackendIp"
 }
 
 
@@ -115,85 +125,115 @@ if (
     [Net.Sockets.AddressFamily]::InterNetwork
 ) {
 
-    throw "BackendIp must be an IPv4 address."
+    throw "BackendIp must be IPv4."
 }
 
 
-if (-not (Test-Path $CaStore)) {
-
-    throw @"
-DOC SECURE Development CA private keystore not found:
-
-$CaStore
-
-Copy docsecure-dev-ca.p12 into the backend folder
-using a secure/offline method.
-
-DO NOT commit docsecure-dev-ca.p12 to Git.
-"@
-}
+Write-Host "Backend IPv4 detected:"
+Write-Host $BackendIp
+Write-Host ""
 
 
 # =============================================================
-# PASSWORDS
+# MACHINE-LOCAL PASSWORDS
 # =============================================================
-
-$serverSecure =
-    Read-Host `
-        "Enter NEW backend keystore password" `
-        -AsSecureString
-
-
-$serverConfirmSecure =
-    Read-Host `
-        "Re-enter NEW backend keystore password" `
-        -AsSecureString
-
 
 $serverPassword =
-    Secure-To-Plain $serverSecure
-
-
-$serverConfirm =
-    Secure-To-Plain $serverConfirmSecure
-
-
-if ($serverPassword -ne $serverConfirm) {
-
-    throw "Backend keystore passwords do not match."
-}
-
-
-if ([string]::IsNullOrWhiteSpace($serverPassword)) {
-
-    throw "Backend keystore password cannot be empty."
-}
-
-
-$caSecure =
-    Read-Host `
-        "Enter DOC SECURE Development CA password" `
-        -AsSecureString
+    New-RandomPassword
 
 
 $caPassword =
-    Secure-To-Plain $caSecure
+    [Environment]::GetEnvironmentVariable(
+        "DOCSECURE_DEV_CA_PASSWORD",
+        "User"
+    )
 
 
-if ([string]::IsNullOrWhiteSpace($caPassword)) {
+# =============================================================
+# DEVELOPMENT CA
+# =============================================================
 
-    throw "CA password cannot be empty."
+if (-not (Test-Path $CaStore)) {
+
+    Write-Host "Creating machine-local DOC SECURE Development CA..."
+    Write-Host ""
+
+    $caPassword =
+        New-RandomPassword
+
+
+    $env:DOCSECURE_TLS_CA_TEMP_PASSWORD =
+        $caPassword
+
+
+    Run-Keytool @(
+        "-genkeypair",
+        "-alias", "docsecure-dev-ca",
+        "-keyalg", "RSA",
+        "-keysize", "4096",
+        "-sigalg", "SHA384withRSA",
+        "-dname", "CN=DOC SECURE Development CA,O=DOC SECURE,C=LK",
+        "-ext", "bc=ca:true,pathlen:0",
+        "-ext", "ku=keyCertSign,cRLSign",
+        "-validity", "3650",
+        "-keystore", $CaStore,
+        "-storetype", "PKCS12",
+        "-storepass:env", "DOCSECURE_TLS_CA_TEMP_PASSWORD",
+        "-keypass:env", "DOCSECURE_TLS_CA_TEMP_PASSWORD"
+    )
+
+
+    [Environment]::SetEnvironmentVariable(
+        "DOCSECURE_DEV_CA_PASSWORD",
+        $caPassword,
+        "User"
+    )
+}
+else {
+
+    if ([string]::IsNullOrWhiteSpace($caPassword)) {
+
+        $secure =
+            Read-Host `
+                "Enter existing DOC SECURE Development CA password" `
+                -AsSecureString
+
+
+        $ptr =
+            [Runtime.InteropServices.Marshal]::SecureStringToBSTR(
+                $secure
+            )
+
+        try {
+
+            $caPassword =
+                [Runtime.InteropServices.Marshal]::PtrToStringBSTR(
+                    $ptr
+                )
+        }
+        finally {
+
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR(
+                $ptr
+            )
+        }
+
+
+        [Environment]::SetEnvironmentVariable(
+            "DOCSECURE_DEV_CA_PASSWORD",
+            $caPassword,
+            "User"
+        )
+    }
 }
 
 
-# Temporary environment variables are used so passwords
-# are not placed directly in keytool command-line arguments.
+$env:DOCSECURE_TLS_CA_TEMP_PASSWORD =
+    $caPassword
+
 
 $env:DOCSECURE_TLS_SERVER_TEMP_PASSWORD =
     $serverPassword
-
-$env:DOCSECURE_TLS_CA_TEMP_PASSWORD =
-    $caPassword
 
 
 try {
@@ -202,24 +242,13 @@ try {
     # CLEAN TEMP FILES
     # =========================================================
 
-    Remove-Item `
-        $TempStore `
-        -Force `
-        -ErrorAction SilentlyContinue
-
-    Remove-Item `
-        $Csr `
-        -Force `
-        -ErrorAction SilentlyContinue
-
-    Remove-Item `
-        $SignedCert `
-        -Force `
-        -ErrorAction SilentlyContinue
+    Remove-Item $TempStore -Force -ErrorAction SilentlyContinue
+    Remove-Item $Csr -Force -ErrorAction SilentlyContinue
+    Remove-Item $SignedCert -Force -ErrorAction SilentlyContinue
 
 
     # =========================================================
-    # EXPORT PUBLIC DEVELOPMENT CA
+    # EXPORT PUBLIC CA
     # =========================================================
 
     Run-Keytool @(
@@ -232,8 +261,6 @@ try {
         "-file", $CaCert
     )
 
-
-    # Keep Android trust anchor synchronized with the CA.
 
     New-Item `
         -ItemType Directory `
@@ -249,7 +276,7 @@ try {
 
 
     # =========================================================
-    # CREATE BACKEND PRIVATE KEY
+    # CREATE BACKEND KEYPAIR
     # =========================================================
 
     Run-Keytool @(
@@ -271,7 +298,7 @@ try {
 
 
     # =========================================================
-    # CREATE CSR
+    # CSR
     # =========================================================
 
     Run-Keytool @(
@@ -288,7 +315,7 @@ try {
 
 
     # =========================================================
-    # SIGN WITH DOC SECURE DEVELOPMENT CA
+    # SIGN SERVER CERTIFICATE
     # =========================================================
 
     Run-Keytool @(
@@ -310,7 +337,7 @@ try {
 
 
     # =========================================================
-    # IMPORT CA CHAIN
+    # INSTALL CERTIFICATE CHAIN
     # =========================================================
 
     Run-Keytool @(
@@ -336,25 +363,6 @@ try {
 
 
     # =========================================================
-    # VERIFY CERTIFICATE
-    # =========================================================
-
-    Write-Host ""
-    Write-Host "Verifying certificate..."
-    Write-Host ""
-
-
-    Run-Keytool @(
-        "-list",
-        "-v",
-        "-alias", "leasing-backend",
-        "-keystore", $TempStore,
-        "-storetype", "PKCS12",
-        "-storepass:env", "DOCSECURE_TLS_SERVER_TEMP_PASSWORD"
-    )
-
-
-    # =========================================================
     # INSTALL BACKEND KEYSTORE
     # =========================================================
 
@@ -374,7 +382,7 @@ try {
 
 
     # =========================================================
-    # SAVE MACHINE-LOCAL BACKEND KEYSTORE PASSWORD
+    # SAVE BACKEND KEYSTORE PASSWORD
     # =========================================================
 
     [Environment]::SetEnvironmentVariable(
@@ -388,31 +396,61 @@ try {
         $serverPassword
 
 
+    # =========================================================
+    # UPDATE ANDROID LOCAL.PROPERTIES
+    # =========================================================
+
+    $localLines = @()
+
+
+    if (Test-Path $AndroidLocalProperties) {
+
+        $localLines =
+            Get-Content $AndroidLocalProperties |
+            Where-Object {
+                $_ -notmatch "^DOCSECURE_BASE_URL="
+            }
+    }
+
+
+    $localLines +=
+        "DOCSECURE_BASE_URL=https://$BackendIp`:8443/"
+
+
+    $utf8NoBom =
+        New-Object System.Text.UTF8Encoding($false)
+
+
+    [System.IO.File]::WriteAllLines(
+        $AndroidLocalProperties,
+        $localLines,
+        $utf8NoBom
+    )
+
+
     Write-Host ""
     Write-Host "============================================"
-    Write-Host "DOC SECURE portable TLS setup SUCCESS"
+    Write-Host "DOC SECURE PORTABLE SETUP SUCCESS"
     Write-Host "============================================"
     Write-Host ""
-    Write-Host "Backend IP:"
-    Write-Host $BackendIp
-    Write-Host ""
-    Write-Host "Android backend URL should be:"
+    Write-Host "Backend URL:"
     Write-Host "https://$BackendIp`:8443/"
+    Write-Host ""
+    Write-Host "Android local.properties updated."
+    Write-Host "Development CA created/configured."
+    Write-Host "Backend HTTPS certificate created."
+    Write-Host "Machine-local passwords stored in user environment."
     Write-Host ""
 }
 finally {
 
-    # =========================================================
-    # REMOVE TEMP PASSWORDS / TEMP CERT FILES
-    # =========================================================
-
     Remove-Item `
-        Env:DOCSECURE_TLS_SERVER_TEMP_PASSWORD `
+        Env:DOCSECURE_TLS_CA_TEMP_PASSWORD `
         -ErrorAction SilentlyContinue
 
 
     Remove-Item `
-        Env:DOCSECURE_TLS_CA_TEMP_PASSWORD `
+        Env:DOCSECURE_TLS_SERVER_TEMP_PASSWORD `
         -ErrorAction SilentlyContinue
 
 
@@ -435,6 +473,5 @@ finally {
 
 
     $serverPassword = $null
-    $serverConfirm = $null
     $caPassword = $null
 }
