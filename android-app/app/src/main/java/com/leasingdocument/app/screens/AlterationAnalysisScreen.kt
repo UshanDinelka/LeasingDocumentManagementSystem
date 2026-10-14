@@ -590,9 +590,7 @@ fun AlterationAnalysisScreen() {
             item {
                 AnalysisLocationCard(
                     location = locationText,
-                    canGoBack = page != AnalysisAdminPage.AGENTS,
                     busy = busy,
-                    onBack = ::goBack,
                     onRefresh = {
                         runAction { refresh() }
                     }
@@ -1153,9 +1151,7 @@ fun AlterationAnalysisScreen() {
 @Composable
 private fun AnalysisLocationCard(
     location: String,
-    canGoBack: Boolean,
     busy: Boolean,
-    onBack: () -> Unit,
     onRefresh: () -> Unit
 ) {
     Box(
@@ -1186,26 +1182,12 @@ private fun AnalysisLocationCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
+            AnalysisMiniAction(
+                text = "REFRESH",
+                enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (canGoBack) {
-                    AnalysisMiniAction(
-                        text = "BACK",
-                        enabled = !busy,
-                        modifier = Modifier.weight(1f),
-                        onClick = onBack
-                    )
-                }
-
-                AnalysisMiniAction(
-                    text = "REFRESH",
-                    enabled = !busy,
-                    modifier = Modifier.weight(1f),
-                    onClick = onRefresh
-                )
-            }
+                onClick = onRefresh
+            )
         }
     }
 }
