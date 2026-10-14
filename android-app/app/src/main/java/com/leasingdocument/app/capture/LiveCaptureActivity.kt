@@ -10,6 +10,10 @@ import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.location.Geocoder
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Bundle
 import android.util.Size
 import android.view.Surface
@@ -33,10 +37,14 @@ import com.leasingdocument.app.network.AuthSession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.time.OffsetDateTime
+import java.util.Locale
+import kotlin.coroutines.resume
 
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -99,12 +107,30 @@ class LiveCaptureActivity : ComponentActivity() {
     private var customerName = ""
     private var typeName = ""
 
+    private var captureLocationName: String? = null
+    private var captureLatitude: Double? = null
+    private var captureLongitude: Double? = null
+
     private val requestPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) checkCameraPermissionAndOpen() else {
+        if (granted) {
+            checkCameraPermissionAndOpen()
+            requestLocationPermissionIfNeeded()
+        } else {
             status.text = "Camera permission is required. Allow it in app settings if permission requests are blocked."
             permission.visibility = View.VISIBLE
         }
     }
+
+    private val requestLocationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val granted =
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                        permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+            if (granted) {
+                refreshCaptureLocation()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -528,6 +554,15 @@ class LiveCaptureActivity : ComponentActivity() {
                 Manifest.permission.CAMERA
             )
         }
+
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            requestLocationPermissionIfNeeded()
+        }
     }
 
 
@@ -578,6 +613,163 @@ class LiveCaptureActivity : ComponentActivity() {
 
     private fun authorized() = agentId > 0 && AuthSession.userId == agentId &&
             AuthSession.role == "AGENT" && !AuthSession.token.isNullOrBlank()
+
+    private fun requestLocationPermissionIfNeeded() {
+        if (hasLocationPermission()) {
+            refreshCaptureLocation()
+            return
+        }
+
+        requestLocationPermission.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+    private fun refreshCaptureLocation() {
+        if (!hasLocationPermission() || isFinishing || isDestroyed) return
+
+        lifecycleScope.launch {
+            try {
+                val location = withContext(Dispatchers.IO) { readBestAvailableLocation() } ?: return@launch
+                captureLatitude = location.latitude
+                captureLongitude = location.longitude
+                captureLocationName =
+                    withContext(Dispatchers.IO) { buildLocationLabel(location) }
+            } catch (e: SecurityException) {
+                android.util.Log.w("LiveCapture", "Location permission unavailable", e)
+            } catch (e: Exception) {
+                android.util.Log.w("LiveCapture", "Unable to resolve capture location", e)
+            }
+        }
+    }
+
+    @Suppress("MissingPermission")
+    private suspend fun readBestAvailableLocation(): Location? {
+        val manager = getSystemService(LOCATION_SERVICE) as LocationManager
+        val fineLocationGranted =
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+        val candidateProviders =
+            buildList {
+                if (fineLocationGranted) add(LocationManager.GPS_PROVIDER)
+                add(LocationManager.NETWORK_PROVIDER)
+            }
+
+        val enabledProviders =
+            candidateProviders.filter { provider ->
+                try {
+                    manager.isProviderEnabled(provider)
+                } catch (_: Exception) {
+                    false
+                }
+            }
+
+        val lastKnown =
+            enabledProviders
+                .mapNotNull { provider ->
+                    try {
+                        manager.getLastKnownLocation(provider)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                .maxByOrNull { it.time }
+
+        if (enabledProviders.isEmpty()) return lastKnown
+
+        val provider =
+            if (LocationManager.GPS_PROVIDER in enabledProviders) {
+                LocationManager.GPS_PROVIDER
+            } else {
+                enabledProviders.first()
+            }
+
+        val fresh =
+            withTimeoutOrNull(5_000L) {
+                suspendCancellableCoroutine<Location?> { continuation ->
+                    val listener =
+                        object : LocationListener {
+                            override fun onLocationChanged(location: Location) {
+                                manager.removeUpdates(this)
+                                if (continuation.isActive) continuation.resume(location)
+                            }
+                        }
+
+                    try {
+                        manager.requestLocationUpdates(
+                            provider,
+                            0L,
+                            0f,
+                            listener,
+                            Looper.getMainLooper()
+                        )
+                        continuation.invokeOnCancellation {
+                            manager.removeUpdates(listener)
+                        }
+                    } catch (e: Exception) {
+                        manager.removeUpdates(listener)
+                        if (continuation.isActive) continuation.resume(null)
+                    }
+                }
+            }
+
+        return fresh ?: lastKnown
+    }
+
+    @Suppress("DEPRECATION")
+    private fun buildLocationLabel(location: Location): String {
+        return try {
+            val address =
+                Geocoder(this, Locale.getDefault())
+                    .getFromLocation(location.latitude, location.longitude, 1)
+                    ?.firstOrNull()
+
+            val fullAddress =
+                address
+                    ?.getAddressLine(0)
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+
+            if (fullAddress != null) {
+                fullAddress
+            } else {
+                val parts =
+                    listOfNotNull(
+                        address?.featureName,
+                        address?.thoroughfare,
+                        address?.subLocality,
+                        address?.locality,
+                        address?.subAdminArea,
+                        address?.adminArea,
+                        address?.countryName
+                    )
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+
+                parts.joinToString(", ")
+                    .ifBlank { "Location name unavailable" }
+            }
+        } catch (_: Exception) {
+            "Location name unavailable"
+        }
+    }
 
     // The same direct Camera2 entry points used by the original CaptureActivity.
     private fun checkCameraPermissionAndOpen() {
@@ -840,6 +1032,7 @@ class LiveCaptureActivity : ComponentActivity() {
         if (!::preview.isInitialized) return
         (getSystemService(DISPLAY_SERVICE) as DisplayManager).registerDisplayListener(displayListener, mainHandler)
         checkCameraPermissionAndOpen()
+        if (hasLocationPermission()) refreshCaptureLocation()
     }
 
     override fun onPause() {
@@ -877,6 +1070,17 @@ class LiveCaptureActivity : ComponentActivity() {
                             .put("agentId", agentId).put("customerId", customerId)
                             .put("customerName", customerName).put("documentTypeCode", typeCode)
                             .put("documentTypeName", typeName).put("captureSource", "LIVE_CAMERA")
+                            .apply {
+                                captureLocationName?.takeIf { it.isNotBlank() }?.let {
+                                    put("captureLocation", it)
+                                }
+                                captureLatitude?.let {
+                                    put("captureLatitude", it.toString())
+                                }
+                                captureLongitude?.let {
+                                    put("captureLongitude", it.toString())
+                                }
+                            }
                             .put("capturedAtOffset", capturedAt)
                             .put("capturedAt", OffsetDateTime.parse(capturedAt).toLocalDateTime().toString())
                             .put("imageWidth", decoded.width).put("imageHeight", decoded.height)

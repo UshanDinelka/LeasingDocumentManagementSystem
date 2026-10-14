@@ -56,7 +56,8 @@ private enum class VerificationPage {
     OVERVIEW,
     INTEGRITY_LIST,
     ALTERATION_LIST,
-    INTEGRITY_TYPE_DOCUMENTS,
+    INTEGRITY_CUSTOMER_DOCUMENTS,
+    INTEGRITY_CUSTOMER_TYPE_DOCUMENTS,
     ALTERATION_TYPE_DOCUMENTS,
     INTEGRITY_DETAILS,
     ALTERATION_DETAILS
@@ -94,6 +95,10 @@ fun VerificationResultsScreen() {
     }
 
     var selectedAlterationDocumentId by remember {
+        mutableStateOf<Long?>(null)
+    }
+
+    var selectedIntegrityCustomerId by remember {
         mutableStateOf<Long?>(null)
     }
 
@@ -262,7 +267,7 @@ fun VerificationResultsScreen() {
 
             VerificationPage.INTEGRITY_DETAILS -> {
                 selectedIntegrityDocumentId = null
-                page = VerificationPage.INTEGRITY_TYPE_DOCUMENTS
+                page = VerificationPage.INTEGRITY_CUSTOMER_TYPE_DOCUMENTS
             }
 
             VerificationPage.ALTERATION_DETAILS -> {
@@ -270,9 +275,16 @@ fun VerificationResultsScreen() {
                 page = VerificationPage.ALTERATION_TYPE_DOCUMENTS
             }
 
-            VerificationPage.INTEGRITY_TYPE_DOCUMENTS -> {
+            VerificationPage.INTEGRITY_CUSTOMER_TYPE_DOCUMENTS -> {
                 selectedIntegrityDocumentId = null
                 selectedIntegrityTypeId = null
+                page = VerificationPage.INTEGRITY_CUSTOMER_DOCUMENTS
+            }
+
+            VerificationPage.INTEGRITY_CUSTOMER_DOCUMENTS -> {
+                selectedIntegrityDocumentId = null
+                selectedIntegrityTypeId = null
+                selectedIntegrityCustomerId = null
                 page = VerificationPage.INTEGRITY_LIST
             }
 
@@ -286,6 +298,7 @@ fun VerificationResultsScreen() {
             VerificationPage.ALTERATION_LIST -> {
                 selectedIntegrityDocumentId = null
                 selectedAlterationDocumentId = null
+                selectedIntegrityCustomerId = null
                 selectedIntegrityTypeId = null
                 selectedAlterationTypeId = null
                 page = VerificationPage.OVERVIEW
@@ -458,12 +471,54 @@ fun VerificationResultsScreen() {
 
             VerificationPage.INTEGRITY_LIST -> {
 
-                IntegrityDocumentsPage(
+                IntegrityCustomersPage(
                     groupedResults =
                         integrityByDocument,
 
                     documents =
                         documents,
+
+                    customers =
+                        customers,
+
+                    loading =
+                        loading,
+
+                    errorMessage =
+                        errorMessage,
+
+                    onCustomerOpen = { customerId ->
+
+                        selectedIntegrityCustomerId =
+                            customerId
+
+                        selectedIntegrityTypeId =
+                            null
+
+                        selectedIntegrityDocumentId =
+                            null
+
+                        page =
+                            VerificationPage.INTEGRITY_CUSTOMER_DOCUMENTS
+                    }
+                )
+            }
+
+
+            VerificationPage.INTEGRITY_CUSTOMER_DOCUMENTS -> {
+
+                IntegrityCustomerDocumentsPage(
+                    customerId =
+                        selectedIntegrityCustomerId,
+
+                    groupedResults =
+                        integrityByDocument,
+
+                    documents =
+                        documents,
+
+                    customers =
+                        customers,
 
                     documentTypes =
                         documentTypes,
@@ -483,15 +538,18 @@ fun VerificationResultsScreen() {
                             null
 
                         page =
-                            VerificationPage.INTEGRITY_TYPE_DOCUMENTS
+                            VerificationPage.INTEGRITY_CUSTOMER_TYPE_DOCUMENTS
                     }
                 )
             }
 
 
-            VerificationPage.INTEGRITY_TYPE_DOCUMENTS -> {
+            VerificationPage.INTEGRITY_CUSTOMER_TYPE_DOCUMENTS -> {
 
-                IntegrityTypeDocumentsPage(
+                IntegrityCustomerTypeDocumentsPage(
+                    customerId =
+                        selectedIntegrityCustomerId,
+
                     typeId =
                         selectedIntegrityTypeId,
 
@@ -1065,49 +1123,50 @@ private fun VerificationOverviewPage(
 
 
 // =====================================================================
-// INTEGRITY — DOCUMENT TYPE LIST
+// INTEGRITY — CUSTOMER LIST
 // =====================================================================
 
 @Composable
-private fun IntegrityDocumentsPage(
+private fun IntegrityCustomersPage(
     groupedResults: Map<Long?, List<IntegrityResult>>,
     documents: List<Document>,
-    documentTypes: List<DocumentType>,
+    customers: List<Customer>,
     loading: Boolean,
     errorMessage: String,
-    onTypeOpen: (Long?) -> Unit
+    onCustomerOpen: (Long?) -> Unit
 ) {
 
     val groups =
         groupedResults
             .entries
             .sortedByDescending { entry ->
-
                 entry.value
                     .latestIntegrityResult()
                     ?.processedAt
                     .orEmpty()
             }
 
-    val typeGroups =
+    val customerGroups =
         groups
             .groupBy { entry ->
-
                 documents
                     .firstOrNull {
                         it.documentId == entry.key
                     }
-                    ?.documentTypeId
+                    ?.customerId
             }
             .entries
-            .sortedBy { typeEntry ->
-
-                documentTypes
-                    .firstOrNull {
-                        it.documentTypeId == typeEntry.key
+            .sortedBy { customerEntry ->
+                val customer =
+                    customers.firstOrNull {
+                        it.customerId == customerEntry.key
                     }
-                    ?.typeName
-                    .orEmpty()
+
+                (
+                        customer?.fullName
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "Customer #${customerEntry.key ?: "-"}"
+                        )
                     .lowercase(Locale.ROOT)
             }
 
@@ -1152,6 +1211,27 @@ private fun IntegrityDocumentsPage(
                 color =
                     Color(0xFF171A2C)
             )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(4.dp)
+            )
+
+
+            Text(
+                text =
+                    "Select a customer to review integrity-verification results for that customer's submitted documents.",
+
+                fontSize =
+                    12.sp,
+
+                lineHeight =
+                    17.sp,
+
+                color =
+                    Color(0xFF817A8B)
+            )
         }
 
 
@@ -1165,7 +1245,7 @@ private fun IntegrityDocumentsPage(
                     "${groups.size} Secured Document${if (groups.size == 1) "" else "s"}",
 
                 subtitle =
-                    "${typeGroups.size} document categor${if (typeGroups.size == 1) "y" else "ies"}",
+                    "${customerGroups.size} customer${if (customerGroups.size == 1) "" else "s"}",
 
                 colors =
                     listOf(
@@ -1206,7 +1286,7 @@ private fun IntegrityDocumentsPage(
 
         if (
             !loading &&
-            typeGroups.isEmpty()
+            customerGroups.isEmpty()
         ) {
 
             item {
@@ -1216,7 +1296,326 @@ private fun IntegrityDocumentsPage(
                         "No integrity results",
 
                     message =
-                        "No integrity-verification records are available."
+                        "No customer integrity-verification records are available."
+                )
+            }
+        }
+
+
+        customerGroups.forEach { customerEntry ->
+
+            val customerId =
+                customerEntry.key
+
+            val customer =
+                customers.firstOrNull {
+                    it.customerId == customerId
+                }
+
+            val customerName =
+                customer?.fullName
+                    ?.takeIf {
+                        it.isNotBlank()
+                    }
+                    ?: if (customerId != null) {
+                        "Customer #$customerId"
+                    } else {
+                        "Unassigned Customer"
+                    }
+
+            val customerNic =
+                customer?.nic
+                    ?.takeIf {
+                        it.isNotBlank()
+                    }
+
+            val documentEntries =
+                customerEntry.value
+
+            val verifiedCount =
+                documentEntries.count { entry ->
+                    entry.value
+                        .latestIntegrityResult()
+                        ?.let(::integrityPassed) == true
+                }
+
+            val attentionCount =
+                documentEntries.size -
+                        verifiedCount
+
+
+            item(
+                key =
+                    "integrity-customer-${customerId ?: "unknown"}"
+            ) {
+
+                VerificationTypeNavigationCard(
+                    badge =
+                        "CUS",
+
+                    title =
+                        customerName,
+
+                    subtitle =
+                        buildString {
+                            if (customerNic != null) {
+                                append("NIC: ")
+                                append(customerNic)
+                                append("  •  ")
+                            }
+
+                            append(documentEntries.size)
+                            append(" document")
+                            if (documentEntries.size != 1) {
+                                append("s")
+                            }
+                        },
+
+                    primaryLabel =
+                        "VERIFIED",
+
+                    primaryValue =
+                        verifiedCount,
+
+                    secondaryLabel =
+                        "ATTENTION",
+
+                    secondaryValue =
+                        attentionCount,
+
+                    colors =
+                        listOf(
+                            Color(0xFF6553BD),
+                            Color(0xFF9C4FC1)
+                        ),
+
+                    onClick = {
+                        onCustomerOpen(customerId)
+                    }
+                )
+            }
+        }
+    }
+}
+
+
+// =====================================================================
+// INTEGRITY — DOCUMENT TYPES INSIDE SELECTED CUSTOMER
+// =====================================================================
+
+@Composable
+private fun IntegrityCustomerDocumentsPage(
+    customerId: Long?,
+    groupedResults: Map<Long?, List<IntegrityResult>>,
+    documents: List<Document>,
+    customers: List<Customer>,
+    documentTypes: List<DocumentType>,
+    loading: Boolean,
+    errorMessage: String,
+    onTypeOpen: (Long?) -> Unit
+) {
+
+    val customer =
+        customers.firstOrNull {
+            it.customerId == customerId
+        }
+
+    val customerName =
+        customer?.fullName
+            ?.takeIf {
+                it.isNotBlank()
+            }
+            ?: if (customerId != null) {
+                "Customer #$customerId"
+            } else {
+                "Unassigned Customer"
+            }
+
+    val customerEntries =
+        groupedResults
+            .entries
+            .filter { entry ->
+                documents
+                    .firstOrNull {
+                        it.documentId == entry.key
+                    }
+                    ?.customerId == customerId
+            }
+
+    val typeGroups =
+        customerEntries
+            .groupBy { entry ->
+                documents
+                    .firstOrNull {
+                        it.documentId == entry.key
+                    }
+                    ?.documentTypeId
+            }
+            .entries
+            .sortedBy { typeEntry ->
+                documentTypes
+                    .firstOrNull {
+                        it.documentTypeId == typeEntry.key
+                    }
+                    ?.typeName
+                    .orEmpty()
+                    .lowercase(Locale.ROOT)
+            }
+
+    val verified =
+        customerEntries.count { entry ->
+            entry.value
+                .latestIntegrityResult()
+                ?.let(::integrityPassed) == true
+        }
+
+
+    LazyColumn(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(
+                    horizontal = 22.dp
+                ),
+
+        contentPadding =
+            PaddingValues(
+                bottom = 30.dp
+            ),
+
+        verticalArrangement =
+            Arrangement.spacedBy(12.dp)
+    ) {
+
+        item {
+
+            Spacer(
+                modifier =
+                    Modifier.height(18.dp)
+            )
+
+            Text(
+                text =
+                    customerName,
+
+                fontSize =
+                    27.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color(0xFF171A2C)
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(4.dp)
+            )
+
+            Text(
+                text =
+                    "Select a document category to review this customer's integrity-verification records.",
+
+                fontSize =
+                    12.sp,
+
+                lineHeight =
+                    17.sp,
+
+                color =
+                    Color(0xFF817A8B)
+            )
+
+            customer?.nic
+                ?.takeIf {
+                    it.isNotBlank()
+                }
+                ?.let { nic ->
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(4.dp)
+                    )
+
+                    Text(
+                        text =
+                            "NIC: $nic",
+
+                        fontSize =
+                            11.sp,
+
+                        color =
+                            Color(0xFF817A8B)
+                    )
+                }
+        }
+
+
+        item {
+
+            VerificationSectionHero(
+                badge =
+                    "INT",
+
+                title =
+                    "${customerEntries.size} Secured Document${if (customerEntries.size == 1) "" else "s"}",
+
+                subtitle =
+                    "${typeGroups.size} document categor${if (typeGroups.size == 1) "y" else "ies"}",
+
+                colors =
+                    listOf(
+                        Color(0xFF6553BD),
+                        Color(0xFF9C4FC1),
+                        Color(0xFFD34D92)
+                    )
+            )
+        }
+
+
+        if (loading) {
+
+            item {
+
+                VerificationLoadingCard(
+                    text =
+                        "Loading $customerName results..."
+                )
+            }
+        }
+
+
+        if (errorMessage.isNotBlank()) {
+
+            item {
+
+                VerificationMessageCard(
+                    message =
+                        errorMessage,
+
+                    error =
+                        true
+                )
+            }
+        }
+
+
+        if (
+            !loading &&
+            typeGroups.isEmpty()
+        ) {
+
+            item {
+
+                VerificationEmptyCard(
+                    title =
+                        "No integrity documents",
+
+                    message =
+                        "No integrity-verification records are available for this customer."
                 )
             }
         }
@@ -1256,7 +1655,7 @@ private fun IntegrityDocumentsPage(
 
             item(
                 key =
-                    "integrity-type-${typeId ?: "unknown"}"
+                    "integrity-customer-${customerId ?: "unknown"}-type-${typeId ?: "unknown"}"
             ) {
 
                 VerificationTypeNavigationCard(
@@ -1298,11 +1697,12 @@ private fun IntegrityDocumentsPage(
 
 
 // =====================================================================
-// INTEGRITY — DOCUMENTS INSIDE SELECTED TYPE
+// INTEGRITY — DOCUMENTS INSIDE SELECTED CUSTOMER + TYPE
 // =====================================================================
 
 @Composable
-private fun IntegrityTypeDocumentsPage(
+private fun IntegrityCustomerTypeDocumentsPage(
+    customerId: Long?,
     typeId: Long?,
     groupedResults: Map<Long?, List<IntegrityResult>>,
     documents: List<Document>,
@@ -1312,6 +1712,22 @@ private fun IntegrityTypeDocumentsPage(
     errorMessage: String,
     onDocumentOpen: (Long?) -> Unit
 ) {
+
+    val customer =
+        customers.firstOrNull {
+            it.customerId == customerId
+        }
+
+    val customerName =
+        customer?.fullName
+            ?.takeIf {
+                it.isNotBlank()
+            }
+            ?: if (customerId != null) {
+                "Customer #$customerId"
+            } else {
+                "Unassigned Customer"
+            }
 
     val type =
         documentTypes.firstOrNull {
@@ -1329,15 +1745,15 @@ private fun IntegrityTypeDocumentsPage(
         groupedResults
             .entries
             .filter { entry ->
-
-                documents
-                    .firstOrNull {
+                val document =
+                    documents.firstOrNull {
                         it.documentId == entry.key
                     }
-                    ?.documentTypeId == typeId
+
+                document?.customerId == customerId &&
+                        document?.documentTypeId == typeId
             }
             .sortedByDescending { entry ->
-
                 entry.value
                     .latestIntegrityResult()
                     ?.processedAt
@@ -1378,7 +1794,6 @@ private fun IntegrityTypeDocumentsPage(
                     Modifier.height(18.dp)
             )
 
-
             Text(
                 text =
                     typeName,
@@ -1391,6 +1806,22 @@ private fun IntegrityTypeDocumentsPage(
 
                 color =
                     Color(0xFF171A2C)
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(4.dp)
+            )
+
+            Text(
+                text =
+                    customerName,
+
+                fontSize =
+                    12.sp,
+
+                color =
+                    Color(0xFF817A8B)
             )
         }
 
@@ -1456,21 +1887,42 @@ private fun IntegrityTypeDocumentsPage(
         }
 
 
-        item {
+        if (
+            !loading &&
+            documentEntries.isEmpty()
+        ) {
 
-            Text(
-                text =
-                    "Verification Records",
+            item {
 
-                fontSize =
-                    18.sp,
+                VerificationEmptyCard(
+                    title =
+                        "No $typeName documents",
 
-                fontWeight =
-                    FontWeight.Bold,
+                    message =
+                        "No integrity-verification records are available for this customer in this category."
+                )
+            }
+        }
 
-                color =
-                    Color(0xFF1B1D30)
-            )
+
+        if (documentEntries.isNotEmpty()) {
+
+            item {
+
+                Text(
+                    text =
+                        "Verification Records",
+
+                    fontSize =
+                        18.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    color =
+                        Color(0xFF1B1D30)
+                )
+            }
         }
 
 
@@ -1491,16 +1943,10 @@ private fun IntegrityTypeDocumentsPage(
                     it.documentId == documentId
                 }
 
-            val customer =
-                customers.firstOrNull {
-                    it.customerId ==
-                            document?.customerId
-                }
-
 
             item(
                 key =
-                    "integrity-${documentId ?: latest.integrityResultId ?: latest.hashCode()}"
+                    "integrity-${customerId ?: "unknown"}-${typeId ?: "unknown"}-${documentId ?: latest.integrityResultId ?: latest.hashCode()}"
             ) {
 
                 IntegrityDocumentCard(

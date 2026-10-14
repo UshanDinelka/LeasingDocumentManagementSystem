@@ -904,38 +904,11 @@ fun AlterationAnalysisScreen() {
 
                         report?.let { details ->
                             item {
-                                AnalysisTextSection(
-                                    title = "Verification Context",
-                                    subtitle = "Component 4 v6 provenance",
-                                    value = buildString {
-                                        append("Verification: ")
-                                        append(
-                                            details.optString(
-                                                "verificationStatus",
-                                                "NOT AVAILABLE"
-                                            )
-                                        )
-                                        append("\nReference supplied: ")
-                                        append(
-                                            if (details.optBoolean("referenceSupplied", false)) {
-                                                "Yes"
-                                            } else {
-                                                "No"
-                                            }
-                                        )
-                                        details
-                                            .optString("referenceProvenanceNotice")
-                                            .takeIf { it.isNotBlank() }
-                                            ?.let {
-                                                append("\n")
-                                                append(it)
-                                            }
-                                    }
-                                )
+                                Component4ReferenceCard(details = details)
                             }
 
                             item {
-                                AnalysisCustomerComparisonCard(
+                                Component4CustomerComparisonCard(
                                     customer = selectedCustomer,
                                     details = details
                                 )
@@ -1015,76 +988,23 @@ fun AlterationAnalysisScreen() {
                             }
 
                             item {
-                                AnalysisTextSection(
-                                    title = "Extracted Candidates",
-                                    value = details
-                                        .optJSONObject("ocr")
-                                        ?.optJSONObject("fields")
-                                        ?.toString(2)
-                                        .orEmpty()
-                                        .ifBlank { "No extracted candidates." }
-                                )
+                                Component4ExtractedFieldsCard(details)
                             }
 
                             item {
-                                AnalysisTextSection(
-                                    title = "OCR Validation",
-                                    value = details
-                                        .optJSONObject("ocr_validation")
-                                        ?.toString(2)
-                                        .orEmpty()
-                                        .ifBlank { "No OCR validation details available." }
-                                )
+                                Component4OcrValidationCard(details)
                             }
 
                             item {
-                                AnalysisTextSection(
-                                    title = "Same-Document Verification",
-                                    value = details
-                                        .optJSONObject("same_document_verification")
-                                        ?.toString(2)
-                                        .orEmpty()
-                                        .ifBlank { "No trusted same-document comparison was recorded." }
-                                )
+                                Component4CoverageCard(details)
                             }
 
                             item {
-                                AnalysisTextSection(
-                                    title = "Detector Coverage",
-                                    value = details
-                                        .optJSONObject("risk_details")
-                                        ?.optJSONObject("detector_coverage")
-                                        ?.toString(2)
-                                        .orEmpty()
-                                        .ifBlank { "No detector coverage details." }
-                                )
+                                Component4FindingsCard(details)
                             }
 
                             item {
-                                AnalysisTextSection(
-                                    title = "Alteration Findings",
-                                    value = details
-                                        .optJSONObject("risk_details")
-                                        ?.optJSONArray("findings")
-                                        ?.toString(2)
-                                        .orEmpty()
-                                        .ifBlank {
-                                            "No localized findings reported. This does not establish authenticity."
-                                        }
-                                )
-                            }
-
-                            item {
-                                AnalysisTextSection(
-                                    title = "Detector Scores",
-                                    subtitle = "Uncalibrated screening indicators",
-                                    value = details
-                                        .optJSONObject("risk_details")
-                                        ?.optJSONObject("component_scores")
-                                        ?.toString(2)
-                                        .orEmpty()
-                                        .ifBlank { "No component scores available." }
-                                )
+                                Component4ScoresCard(details)
                             }
 
                             selectedResult?.let { row ->

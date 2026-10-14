@@ -1,4 +1,4 @@
-﻿package com.leasingdocument.app.screens
+package com.leasingdocument.app.screens
 
 import android.content.ContentValues
 import android.os.Build
@@ -1805,7 +1805,7 @@ private fun ProfessionalCustomerCard(
                 }
 
                 Text(
-                    text = "â€º",
+                    text = "\u203A",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFB2A9BC)
@@ -1989,7 +1989,7 @@ private fun ProfessionalDocumentTypeCard(
                 }
 
                 Text(
-                    text = "â€º",
+                    text = "\u203A",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFB2A9BC)
