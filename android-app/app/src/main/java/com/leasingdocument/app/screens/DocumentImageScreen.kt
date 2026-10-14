@@ -246,16 +246,6 @@ fun DocumentImageScreen(
                 )
 
 
-                Text(
-                    text =
-                        "Secure preview of the stored original document.",
-
-                    fontSize =
-                        12.sp,
-
-                    color =
-                        Color(0xFF817A8B)
-                )
             }
 
 
@@ -909,7 +899,7 @@ private fun PreviewSecurityInfoCard() {
 
             Text(
                 text =
-                    "The original file was retrieved through the authenticated DOC SECURE document endpoint. JPEG orientation metadata is applied automatically when available.",
+                    "Authenticated secure retrieval.",
 
                 fontSize =
                     10.sp,

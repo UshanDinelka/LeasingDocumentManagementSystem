@@ -1,5 +1,3 @@
-
-
 package com.leasingdocument.app.screens
 
 import android.app.Activity
@@ -20,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -529,13 +528,14 @@ fun CapturePreparationScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(
-                    horizontal = 20.dp
+                    horizontal = 22.dp
                 ),
 
             verticalArrangement =
                 Arrangement.spacedBy(
-                    14.dp
+                    12.dp
                 )
         ) {
 
@@ -549,7 +549,7 @@ fun CapturePreparationScreen() {
                 Spacer(
                     modifier =
                         Modifier.height(
-                            12.dp
+                            18.dp
                         )
                 )
 
@@ -579,7 +579,7 @@ fun CapturePreparationScreen() {
 
                 Text(
                     text =
-                        "Prepare your document before opening the secure camera.",
+                        "Guided secure capture for customer documents.",
 
                     fontSize =
                         13.sp,
@@ -739,12 +739,9 @@ fun CapturePreparationScreen() {
 
                         item {
 
-                            CaptureSectionHeader(
-                                step = "01",
-                                title =
-                                    "Select Customer",
-                                subtitle =
-                                    "Search for an existing customer or create a new one."
+                            CaptureCustomerStageCard(
+                                customerCount =
+                                    customers.size
                             )
                         }
 
@@ -761,7 +758,13 @@ fun CapturePreparationScreen() {
 
                                 label = {
                                     Text(
-                                        "Search by name or NIC"
+                                        "Search customers"
+                                    )
+                                },
+
+                                placeholder = {
+                                    Text(
+                                        "Name or NIC"
                                     )
                                 },
 
@@ -770,7 +773,7 @@ fun CapturePreparationScreen() {
 
                                 shape =
                                     RoundedCornerShape(
-                                        16.dp
+                                        17.dp
                                     ),
 
                                 modifier =
@@ -779,65 +782,18 @@ fun CapturePreparationScreen() {
                         }
 
 
-                        // =============================================
-                        // CREATE CUSTOMER
-                        // =============================================
-
                         item {
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(
-                                        52.dp
-                                    )
-                                    .clip(
-                                        RoundedCornerShape(
-                                            16.dp
-                                        )
-                                    )
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            colors =
-                                                listOf(
-                                                    Color(0xFF7351BD),
-                                                    Color(0xFF9450C5)
-                                                )
-                                        )
-                                    )
-                                    .clickable {
+                            CaptureCreateCustomerAction(
+                                onClick = {
 
-                                        page =
-                                            "CREATE"
+                                    page =
+                                        "CREATE"
 
-                                        message =
-                                            ""
-                                    },
-
-                                contentAlignment =
-                                    Alignment.Center
-                            ) {
-
-                                Text(
-                                    text =
-                                        "+  CREATE CUSTOMER",
-
-                                    color =
-                                        Color.White,
-
-                                    fontSize =
-                                        12.sp,
-
-                                    fontWeight =
-                                        FontWeight.Bold,
-
-                                    letterSpacing =
-                                        0.3.sp,
-
-                                    maxLines =
-                                        1
-                                )
-                            }
+                                    message =
+                                        ""
+                                }
+                            )
                         }
 
 
@@ -858,6 +814,18 @@ fun CapturePreparationScreen() {
                                                 ignoreCase = true
                                             )
                             }
+
+
+                        item {
+
+                            CaptureCustomerListHeader(
+                                visibleCount =
+                                    filtered.size,
+
+                                totalCount =
+                                    customers.size
+                            )
+                        }
 
 
                         if (
@@ -1228,53 +1196,7 @@ fun CapturePreparationScreen() {
                         }
 
 
-                        item {
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp)
-                                    .clip(
-                                        RoundedCornerShape(16.dp)
-                                    )
-                                    .background(
-                                        Color(0xFFF2ECFA)
-                                    )
-                                    .clickable(
-                                        enabled = !saving
-                                    ) {
-                                        page = "CUSTOMER"
-                                        message = ""
-                                    },
-
-                                contentAlignment = Alignment.Center
-                            ) {
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-
-                                    Text(
-                                        text = "‹",
-                                        fontSize = 24.sp,
-                                        color = Color(0xFF7650BD)
-                                    )
-
-                                    Spacer(
-                                        modifier = Modifier.width(8.dp)
-                                    )
-
-                                    Text(
-                                        text = "BACK TO CUSTOMERS",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 0.4.sp,
-                                        color = Color(0xFF7650BD)
-                                    )
-                                }
-                            }
-                        }
                     }
 
 
@@ -1396,7 +1318,7 @@ fun CapturePreparationScreen() {
                                 title =
                                     "Ready to Capture",
                                 subtitle =
-                                    "Confirm the details before opening the secure camera."
+                                    "Ready for secure camera capture."
                             )
                         }
 
@@ -1467,7 +1389,7 @@ fun CapturePreparationScreen() {
 
                                         Text(
                                             text =
-                                                "The encrypted draft is stored securely on this device.",
+                                                "Encrypted local draft saved.",
 
                                             fontSize =
                                                 12.sp,
@@ -1884,6 +1806,406 @@ fun CapturePreparationScreen() {
 
 
 // =====================================================================
+// CUSTOMER PAGE PREMIUM COMPONENTS
+// =====================================================================
+
+@Composable
+private fun CaptureCustomerStageCard(
+    customerCount: Int
+) {
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(
+                    RoundedCornerShape(
+                        24.dp
+                    )
+                )
+                .background(
+                    Brush.horizontalGradient(
+                        colors =
+                            listOf(
+                                Color(0xFF6553BD),
+                                Color(0xFF9C4FC1),
+                                Color(0xFFD34D92)
+                            )
+                    )
+                )
+                .padding(
+                    18.dp
+                )
+    ) {
+
+        Column {
+
+            Text(
+                text =
+                    "STEP 1 OF 3",
+
+                fontSize =
+                    8.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                letterSpacing =
+                    0.8.sp,
+
+                color =
+                    Color.White.copy(
+                        alpha = 0.74f
+                    )
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        5.dp
+                    )
+            )
+
+
+            Text(
+                text =
+                    "Choose Capture Customer",
+
+                fontSize =
+                    20.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color.White
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        4.dp
+                    )
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        14.dp
+                    )
+            )
+
+
+            Row(
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        8.dp
+                    )
+            ) {
+
+                CaptureStageMetric(
+                    label =
+                        "AVAILABLE",
+
+                    value =
+                        customerCount.toString()
+                )
+
+
+                CaptureStageMetric(
+                    label =
+                        "NEXT",
+
+                    value =
+                        "DOCUMENT TYPE"
+                )
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun CaptureStageMetric(
+    label: String,
+    value: String
+) {
+
+    Box(
+        modifier =
+            Modifier
+                .clip(
+                    RoundedCornerShape(
+                        13.dp
+                    )
+                )
+                .background(
+                    Color.White.copy(
+                        alpha = 0.14f
+                    )
+                )
+                .padding(
+                    horizontal = 10.dp,
+                    vertical = 8.dp
+                )
+    ) {
+
+        Column {
+
+            Text(
+                text =
+                    value,
+
+                fontSize =
+                    10.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color.White
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        2.dp
+                    )
+            )
+
+
+            Text(
+                text =
+                    label,
+
+                fontSize =
+                    6.5.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                letterSpacing =
+                    0.4.sp,
+
+                color =
+                    Color.White.copy(
+                        alpha = 0.70f
+                    )
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun CaptureCreateCustomerAction(
+    onClick: () -> Unit
+) {
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(
+                    RoundedCornerShape(
+                        18.dp
+                    )
+                )
+                .background(
+                    Color.White.copy(
+                        alpha = 0.97f
+                    )
+                )
+                .clickable {
+                    onClick()
+                }
+                .padding(
+                    15.dp
+                )
+    ) {
+
+        Row(
+            modifier =
+                Modifier.fillMaxWidth(),
+
+            verticalAlignment =
+                Alignment.CenterVertically
+        ) {
+
+            Box(
+                modifier =
+                    Modifier
+                        .size(
+                            42.dp
+                        )
+                        .clip(
+                            RoundedCornerShape(
+                                13.dp
+                            )
+                        )
+                        .background(
+                            Brush.linearGradient(
+                                colors =
+                                    listOf(
+                                        Color(0xFFFF7B4D),
+                                        Color(0xFFF04D8E),
+                                        Color(0xFF8C4DD1)
+                                    )
+                            )
+                        ),
+
+                contentAlignment =
+                    Alignment.Center
+            ) {
+
+                Text(
+                    text =
+                        "+",
+
+                    fontSize =
+                        20.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    color =
+                        Color.White
+                )
+            }
+
+
+            Spacer(
+                modifier =
+                    Modifier.width(
+                        12.dp
+                    )
+            )
+
+
+            Column(
+                modifier =
+                    Modifier.weight(
+                        1f
+                    )
+            ) {
+
+                Text(
+                    text =
+                        "Create New Customer",
+
+                    fontSize =
+                        13.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    color =
+                        Color(0xFF171A2C)
+                )
+
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            3.dp
+                        )
+                )
+
+
+            }
+
+
+            Text(
+                text =
+                    "›",
+
+                fontSize =
+                    24.sp,
+
+                color =
+                    Color(0xFF7650BD)
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun CaptureCustomerListHeader(
+    visibleCount: Int,
+    totalCount: Int
+) {
+
+    Row(
+        modifier =
+            Modifier.fillMaxWidth(),
+
+        verticalAlignment =
+            Alignment.CenterVertically
+    ) {
+
+        Column(
+            modifier =
+                Modifier.weight(
+                    1f
+                )
+        ) {
+
+            Text(
+                text =
+                    "Customer Accounts",
+
+                fontSize =
+                    18.sp,
+
+                fontWeight =
+                    FontWeight.Bold,
+
+                color =
+                    Color(0xFF1B1D30)
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        2.dp
+                    )
+            )
+
+
+        }
+
+
+        Text(
+            text =
+                if (visibleCount == totalCount) {
+                    "$totalCount TOTAL"
+                } else {
+                    "$visibleCount OF $totalCount"
+                },
+
+            fontSize =
+                8.sp,
+
+            fontWeight =
+                FontWeight.Bold,
+
+            letterSpacing =
+                0.5.sp,
+
+            color =
+                Color(0xFF8D8695)
+        )
+    }
+}
+
+
+// =====================================================================
 // STEP INDICATOR
 // =====================================================================
 
@@ -1893,9 +2215,7 @@ private fun CaptureStepIndicator(
 ) {
 
     val currentStep =
-        when (
-            page
-        ) {
+        when (page) {
 
             "CUSTOMER",
             "CREATE" ->
@@ -1915,17 +2235,17 @@ private fun CaptureStepIndicator(
                 .fillMaxWidth()
                 .clip(
                     RoundedCornerShape(
-                        22.dp
+                        18.dp
                     )
                 )
                 .background(
                     Color.White.copy(
-                        alpha =
-                            0.94f
+                        alpha = 0.96f
                     )
                 )
                 .padding(
-                    16.dp
+                    horizontal = 14.dp,
+                    vertical = 12.dp
                 )
     ) {
 
@@ -1934,10 +2254,7 @@ private fun CaptureStepIndicator(
                 Modifier.fillMaxWidth(),
 
             verticalAlignment =
-                Alignment.CenterVertically,
-
-            horizontalArrangement =
-                Arrangement.Center
+                Alignment.CenterVertically
         ) {
 
             CaptureStepCircle(
@@ -2007,7 +2324,7 @@ private fun CaptureStepCircle(
             modifier =
                 Modifier
                     .size(
-                        34.dp
+                        30.dp
                     )
                     .clip(
                         CircleShape
@@ -2059,7 +2376,7 @@ private fun CaptureStepCircle(
                     },
 
                 fontSize =
-                    13.sp,
+                    11.sp,
 
                 fontWeight =
                     FontWeight.Bold
@@ -2260,27 +2577,71 @@ private fun CustomerSelectionCard(
     onClick: () -> Unit
 ) {
 
+    val name =
+        customer.fullName
+            ?.takeIf {
+                it.isNotBlank()
+            }
+            ?: "Unnamed customer"
+
+    val nic =
+        customer.nic
+            ?.takeIf {
+                it.isNotBlank()
+            }
+            ?: "Not provided"
+
+    val initials =
+        name
+            .trim()
+            .split(
+                Regex("\\s+")
+            )
+            .filter {
+                it.isNotBlank()
+            }
+            .let { parts ->
+
+                when {
+
+                    parts.isEmpty() ->
+                        "CU"
+
+                    parts.size == 1 ->
+                        parts
+                            .first()
+                            .take(2)
+                            .uppercase()
+
+                    else ->
+                        (
+                                parts
+                                    .first()
+                                    .take(1) +
+                                        parts
+                                            .last()
+                                            .take(1)
+                                )
+                            .uppercase()
+                }
+            }
+
+
     Box(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .clip(
                     RoundedCornerShape(
-                        20.dp
+                        21.dp
                     )
                 )
                 .background(
-                    if (
-                        selected
-                    ) {
-
-                        Color(0xFFF2EBFA)
-
+                    if (selected) {
+                        Color(0xFFF1EBFA)
                     } else {
-
                         Color.White.copy(
-                            alpha =
-                                0.94f
+                            alpha = 0.97f
                         )
                     }
                 )
@@ -2288,11 +2649,14 @@ private fun CustomerSelectionCard(
                     onClick()
                 }
                 .padding(
-                    16.dp
+                    15.dp
                 )
     ) {
 
         Row(
+            modifier =
+                Modifier.fillMaxWidth(),
+
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
@@ -2301,7 +2665,7 @@ private fun CustomerSelectionCard(
                 modifier =
                     Modifier
                         .size(
-                            46.dp
+                            48.dp
                         )
                         .clip(
                             CircleShape
@@ -2310,8 +2674,8 @@ private fun CustomerSelectionCard(
                             Brush.linearGradient(
                                 colors =
                                     listOf(
-                                        Color(0xFFFF8C45),
-                                        Color(0xFFD44D9A)
+                                        Color(0xFFF07862),
+                                        Color(0xFFD64E94)
                                     )
                             )
                         ),
@@ -2322,15 +2686,13 @@ private fun CustomerSelectionCard(
 
                 Text(
                     text =
-                        customer.fullName
-                            .orEmpty()
-                            .take(
-                                1
-                            )
-                            .uppercase(),
+                        initials,
 
                     color =
                         Color.White,
+
+                    fontSize =
+                        11.sp,
 
                     fontWeight =
                         FontWeight.Bold
@@ -2341,7 +2703,7 @@ private fun CustomerSelectionCard(
             Spacer(
                 modifier =
                     Modifier.width(
-                        14.dp
+                        12.dp
                     )
             )
 
@@ -2355,54 +2717,111 @@ private fun CustomerSelectionCard(
 
                 Text(
                     text =
-                        customer.fullName
-                            ?: "Unnamed customer",
+                        name,
 
                     fontSize =
-                        15.sp,
+                        14.sp,
 
                     fontWeight =
                         FontWeight.Bold,
 
                     color =
-                        Color(0xFF181A2D)
+                        Color(0xFF171A2C),
+
+                    maxLines =
+                        1
                 )
 
 
                 Spacer(
                     modifier =
                         Modifier.height(
-                            4.dp
+                            3.dp
                         )
                 )
 
 
                 Text(
                     text =
-                        "NIC: ${
-                            customer.nic
-                                ?: "Not provided"
-                        }",
+                        "NIC: $nic",
 
                     fontSize =
-                        12.sp,
+                        9.sp,
 
                     color =
-                        Color(0xFF7C7587)
+                        Color(0xFF817A8B),
+
+                    maxLines =
+                        1
+                )
+
+
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            5.dp
+                        )
+                )
+
+
+                Text(
+                    text =
+                        "Customer ID ${customer.customerId ?: "-"}",
+
+                    fontSize =
+                        8.sp,
+
+                    fontWeight =
+                        FontWeight.SemiBold,
+
+                    color =
+                        Color(0xFF7650BD)
                 )
             }
 
 
-            Text(
-                text =
-                    "›",
+            Box(
+                modifier =
+                    Modifier
+                        .clip(
+                            RoundedCornerShape(
+                                50.dp
+                            )
+                        )
+                        .background(
+                            if (selected) {
+                                Color(0xFFE4D8F4)
+                            } else {
+                                Color(0xFFF6F1FA)
+                            }
+                        )
+                        .padding(
+                            horizontal = 10.dp,
+                            vertical = 7.dp
+                        )
+            ) {
 
-                fontSize =
-                    28.sp,
+                Text(
+                    text =
+                        if (selected) {
+                            "SELECTED"
+                        } else {
+                            "SELECT  ›"
+                        },
 
-                color =
-                    Color(0xFF8C8494)
-            )
+                    fontSize =
+                        7.sp,
+
+                    fontWeight =
+                        FontWeight.Bold,
+
+                    letterSpacing =
+                        0.3.sp,
+
+                    color =
+                        Color(0xFF7650BD)
+                )
+            }
         }
     }
 }
@@ -2813,7 +3232,7 @@ private fun CaptureSummaryCard(
 
                 Text(
                     text =
-                        "The secure camera will capture the document and save an encrypted draft on this device.",
+                        "Secure camera capture creates an encrypted local draft.",
 
                     fontSize =
                         12.sp,
