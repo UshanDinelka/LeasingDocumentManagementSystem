@@ -1,4 +1,4 @@
-package com.leasingdocument.app.screens
+﻿package com.leasingdocument.app.screens
 
 import android.content.ContentValues
 import android.os.Build
@@ -764,7 +764,7 @@ private fun AgentDocumentsBackground() {
 
 
 // =====================================================================
-// PAGE 1 — PROFESSIONAL OVERVIEW
+// PAGE 1 â€” PROFESSIONAL OVERVIEW
 // =====================================================================
 
 @Composable
@@ -1000,7 +1000,7 @@ private fun AgentDocumentsOverviewPage(
 
 
 // =====================================================================
-// PAGE 2 — CUSTOMER DOCUMENT TYPES
+// PAGE 2 â€” CUSTOMER DOCUMENT TYPES
 // =====================================================================
 
 @Composable
@@ -1223,7 +1223,7 @@ private fun AgentCustomerDocumentTypesPage(
 
 
 // =====================================================================
-// PAGE 3 — DOCUMENTS INSIDE ONE TYPE
+// PAGE 3 â€” DOCUMENTS INSIDE ONE TYPE
 // =====================================================================
 
 @Composable
@@ -1292,7 +1292,7 @@ private fun AgentDocumentTypeDocumentsPage(
 
             Text(
                 text =
-                    "${customer?.fullName.agentMeta()} • ${documents.size} submitted",
+                    "${customer?.fullName.agentMeta()} â€¢ ${documents.size} submitted",
                 fontSize = 12.sp,
                 color = Color(0xFF817A8B)
             )
@@ -1403,7 +1403,7 @@ private fun AgentDocumentTypeDocumentsPage(
 
 
 // =====================================================================
-// PAGE 4 — DOCUMENT DETAILS
+// PAGE 4 â€” DOCUMENT DETAILS
 // =====================================================================
 
 @Composable
@@ -1587,44 +1587,18 @@ private fun AgentDocumentDetailsPage(
 
         item {
 
-            Row(
+            AgentDocumentPrimaryAction(
                 modifier =
                     Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.spacedBy(10.dp)
-            ) {
-
-                AgentDocumentPrimaryAction(
-                    modifier =
-                        Modifier.weight(1f),
-                    text =
-                        "VIEW ORIGINAL",
-                    enabled =
-                        !document.fileName.isNullOrBlank(),
-                    primary =
-                        true,
-                    onClick =
-                        onView
-                )
-
-                AgentDocumentPrimaryAction(
-                    modifier =
-                        Modifier.weight(1f),
-                    text =
-                        if (downloading) {
-                            "SAVING..."
-                        } else {
-                            "SAVE COPY"
-                        },
-                    enabled =
-                        !downloading &&
-                                !document.fileName.isNullOrBlank(),
-                    primary =
-                        false,
-                    onClick =
-                        onDownload
-                )
-            }
+                text =
+                    "VIEW ORIGINAL",
+                enabled =
+                    !document.fileName.isNullOrBlank(),
+                primary =
+                    true,
+                onClick =
+                    onView
+            )
         }
     }
 }
@@ -1831,7 +1805,7 @@ private fun ProfessionalCustomerCard(
                 }
 
                 Text(
-                    text = "›",
+                    text = "â€º",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFB2A9BC)
@@ -2015,7 +1989,7 @@ private fun ProfessionalDocumentTypeCard(
                 }
 
                 Text(
-                    text = "›",
+                    text = "â€º",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFB2A9BC)
@@ -2485,36 +2459,14 @@ private fun ProfessionalDocumentCard(
                     Modifier.height(12.dp)
             )
 
-            Row(
-                horizontalArrangement =
-                    Arrangement.spacedBy(9.dp)
-            ) {
-
-                AgentDocumentPrimaryAction(
-                    modifier =
-                        Modifier.weight(1f),
-                    text = "VIEW DETAILS",
-                    enabled = true,
-                    primary = true,
-                    onClick = onOpen
-                )
-
-                AgentDocumentPrimaryAction(
-                    modifier =
-                        Modifier.weight(1f),
-                    text =
-                        if (downloading) {
-                            "SAVING..."
-                        } else {
-                            "SAVE COPY"
-                        },
-                    enabled =
-                        !downloading &&
-                                !document.fileName.isNullOrBlank(),
-                    primary = false,
-                    onClick = onDownload
-                )
-            }
+            AgentDocumentPrimaryAction(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                text = "VIEW DETAILS",
+                enabled = true,
+                primary = true,
+                onClick = onOpen
+            )
         }
     }
 }
@@ -3301,3 +3253,4 @@ private fun String?.agentMeta(): String =
             it.isNotBlank()
         }
         ?: "Not available"
+
