@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
 
+    <!--
+        DOC SECURE portable development TLS configuration.
+
+        Security:
+        - Cleartext HTTP is blocked.
+        - Normal Android/system certificate authorities remain trusted.
+        - The DOC SECURE Development CA is trusted for HTTPS development servers.
+        - Hostname/IP verification is still enforced by TLS, so each backend
+          server certificate must contain the machine's actual IP/hostname in SAN.
+    -->
+
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
+            <certificates src="@raw/docsecure_dev_ca" />
         </trust-anchors>
     </base-config>
-
-    <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="false">192.168.8.101</domain>
-
-        <trust-anchors>
-            <certificates src="@raw/leasing_backend" />
-        </trust-anchors>
-    </domain-config>
 
 </network-security-config>
