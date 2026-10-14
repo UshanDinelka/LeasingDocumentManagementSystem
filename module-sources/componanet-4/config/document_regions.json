@@ -317,5 +317,59 @@
         "type": "signature"
       }
     }
+  },
+  "NIC_COPY": {
+    "template": "nic_template_v1_normalized.png",
+    "regions": {
+      "government_logo": {
+        "x1": 0.06,
+        "y1": 0.03,
+        "x2": 0.22,
+        "y2": 0.21,
+        "type": "logo"
+      },
+      "photo": {
+        "x1": 0.04,
+        "y1": 0.27,
+        "x2": 0.36,
+        "y2": 0.83,
+        "type": "photo"
+      },
+      "nic_number": {
+        "x1": 0.54,
+        "y1": 0.18,
+        "x2": 0.93,
+        "y2": 0.31,
+        "type": "text"
+      },
+      "name": {
+        "x1": 0.37,
+        "y1": 0.3,
+        "x2": 0.94,
+        "y2": 0.72,
+        "type": "text"
+      },
+      "sex": {
+        "x1": 0.38,
+        "y1": 0.7,
+        "x2": 0.94,
+        "y2": 0.82,
+        "type": "text"
+      },
+      "date_of_birth": {
+        "x1": 0.39,
+        "y1": 0.79,
+        "x2": 0.94,
+        "y2": 0.9,
+        "type": "text"
+      },
+      "holder_signature": {
+        "x1": 0.65,
+        "y1": 0.87,
+        "x2": 0.95,
+        "y2": 0.98,
+        "type": "signature"
+      }
+    }
   }
 }

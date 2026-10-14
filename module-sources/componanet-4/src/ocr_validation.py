@@ -12,7 +12,10 @@ from PIL import Image
 
 SUPPORTED_DOCUMENT_TYPES = {
     "NIC",
+    "NIC_COPY",
     "DRIVING_LICENCE",
+    "SALARY_SLIP",
+    "UTILITY_BILL",
     "BANK_STATEMENT",
     "BUSINESS_REGISTRATION",
     "VEHICLE_CR_BOOK",
@@ -1001,7 +1004,7 @@ def validate_ocr_payload(
 
     if (
         internal_document_type
-        == "NIC"
+        in ("NIC", "NIC_COPY")
     ):
 
         issues.extend(
@@ -1025,7 +1028,7 @@ def validate_ocr_payload(
         )
 
 
-    elif internal_document_type in {"BANK_STATEMENT", "BUSINESS_REGISTRATION", "VEHICLE_CR_BOOK"}:
+    elif internal_document_type in {"BANK_STATEMENT", "BUSINESS_REGISTRATION", "VEHICLE_CR_BOOK", "SALARY_SLIP", "UTILITY_BILL"}:
         dates = fields.get("dates", [])
         if not isinstance(dates, list):
             issues.append(create_issue("INVALID_DATE_LIST", "dates", "Date candidates must be a list."))
@@ -1033,7 +1036,8 @@ def validate_ocr_payload(
             issues.append(create_issue("INVALID_DATE_FORMAT", "dates", "One or more date candidates require manual checking."))
         # Specific candidates are shown separately; absence is an OCR review issue, never fraud proof.
         expected = {"BANK_STATEMENT": "accountNumberCandidates", "BUSINESS_REGISTRATION": "companyNumberCandidates",
-                    "VEHICLE_CR_BOOK": "registrationNumberCandidates"}[internal_document_type]
+                    "VEHICLE_CR_BOOK": "registrationNumberCandidates",
+                    "SALARY_SLIP": "amountCandidates", "UTILITY_BILL": "amountCandidates"}[internal_document_type]
         if not fields.get(expected):
             issues.append(create_issue("FIELD_NOT_EXTRACTED", expected, "This field could not be extracted confidently; check the original document."))
 

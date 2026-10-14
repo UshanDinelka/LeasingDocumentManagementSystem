@@ -1,5 +1,6 @@
 package com.leasingdocument.backend.controller;
 
+import com.leasingdocument.backend.dto.AddAgentRequest;
 import com.leasingdocument.backend.entity.Agent;
 import com.leasingdocument.backend.service.AgentService;
 import org.springframework.http.HttpStatus;
@@ -17,7 +18,9 @@ public class AgentController {
     private final AgentService agentService;
 
 
-    public AgentController(AgentService agentService) {
+    public AgentController(
+            AgentService agentService
+    ) {
         this.agentService = agentService;
     }
 
@@ -29,6 +32,7 @@ public class AgentController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public List<Agent> getAllAgents() {
+
         return agentService.getAllAgents();
     }
 
@@ -45,11 +49,13 @@ public class AgentController {
             Authentication authentication
     ) {
 
-        String role = authentication
-                .getAuthorities()
-                .iterator()
-                .next()
-                .getAuthority();
+        String role =
+                authentication
+                        .getAuthorities()
+                        .iterator()
+                        .next()
+                        .getAuthority();
+
 
         String loggedInUserId =
                 authentication
@@ -58,8 +64,7 @@ public class AgentController {
 
 
         if (
-                "ROLE_AGENT".equals(role)
-                        &&
+                "ROLE_AGENT".equals(role) &&
                         !loggedInUserId.equals(
                                 String.valueOf(id)
                         )
@@ -83,16 +88,17 @@ public class AgentController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public Agent createAgent(
-            @RequestBody Agent agent
+            @RequestBody AddAgentRequest request
     ) {
 
-        return agentService.saveAgent(agent);
+        return agentService.createAgent(
+                request
+        );
     }
 
 
     // =========================================================
     // ADMIN ONLY - Disable agent
-    // Soft disable preserves documents, sessions and audit history
     // =========================================================
 
     @PostMapping("/{id}/disable")
@@ -121,8 +127,6 @@ public class AgentController {
 
     // =========================================================
     // LEGACY HARD DELETE
-    // Kept only for backend compatibility.
-    // Manage Agents UI should use disable/reactivate instead.
     // =========================================================
 
     @DeleteMapping("/{id}")

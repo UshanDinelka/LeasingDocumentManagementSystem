@@ -108,6 +108,27 @@
         ]
       ],
       "fieldPolicy": "VEHICLE"
+    },
+    "NIC_COPY": {
+      "template": "nic_template_v1.jpg",
+      "titlePatterns": [
+        "NATIONAL\\s+IDENTITY\\s+CARD"
+      ],
+      "staticRegions": [
+        [
+          0.06,
+          0.03,
+          0.94,
+          0.215
+        ]
+      ],
+      "fieldPolicy": "NIC",
+      "analysisBounds": [
+        0.095,
+        0.065,
+        0.95,
+        0.935
+      ]
     }
   }
 }

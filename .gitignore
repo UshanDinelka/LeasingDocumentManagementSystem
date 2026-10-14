@@ -68,3 +68,15 @@ Desktop.ini
 # =========================================================
 
 .DS_Store
+
+# =========================================================
+# DOC SECURE PORTABLE TLS - PRIVATE / GENERATED FILES
+# =========================================================
+
+backend/docsecure-dev-ca.p12
+backend/keystore-portable.p12
+backend/leasing-backend.csr
+backend/leasing-backend-signed.crt
+
+backend/src/main/resources/keystore.p12
+backend/src/main/resources/keystore-before-portable-tls.p12

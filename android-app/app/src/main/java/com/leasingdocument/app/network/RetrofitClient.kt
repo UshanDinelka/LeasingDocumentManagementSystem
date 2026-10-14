@@ -1,6 +1,7 @@
 package com.leasingdocument.app.network
 
 import com.leasingdocument.app.BuildConfig
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -12,25 +13,61 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
 
     // =========================================================
-    // HTTPS BACKEND
+    // CONFIGURABLE HTTPS BACKEND
     // =========================================================
     //
-    // Spring Boot HTTPS server:
-    // https://localhost:8443/
+    // Source:
+    // BuildConfig.DOCSECURE_BASE_URL
     //
-    // Physical Android device / local network:
-    // https://192.168.8.101:8443/
+    // Configure without editing Kotlin:
     //
-    // Cleartext HTTP is disabled in AndroidManifest.xml and
-    // network_security_config.xml.
+    // Option 1 - android-app/local.properties
+    // DOCSECURE_BASE_URL=https://<BACKEND-IP>:8443/
     //
-    // The local development certificate is trusted through:
-    // res/raw/leasing_backend.crt
+    // Option 2 - environment variable
+    // DOCSECURE_BASE_URL=https://<BACKEND-IP>:8443/
+    //
+    // Security:
+    // - HTTPS is mandatory.
+    // - Cleartext HTTP remains blocked by Android configuration.
+    // - The URL must include a trailing slash for Retrofit.
+    //
+    // TLS certificate trust is configured separately through
+    // network_security_config.xml and the bundled DOC SECURE
+    // Development CA certificate.
     //
     // =========================================================
 
-    private const val BASE_URL =
-        "https://192.168.8.101:8443/"
+    private val baseUrl by lazy {
+
+        val configured =
+            BuildConfig
+                .DOCSECURE_BASE_URL
+                .trim()
+
+        require(
+            configured.isNotBlank()
+        ) {
+            "DOCSECURE_BASE_URL is not configured."
+        }
+
+        val url =
+            configured.toHttpUrl()
+
+        require(
+            url.isHttps
+        ) {
+            "DOCSECURE_BASE_URL must use HTTPS."
+        }
+
+        require(
+            configured.endsWith("/")
+        ) {
+            "DOCSECURE_BASE_URL must end with '/'."
+        }
+
+        configured
+    }
 
 
     // =========================================================
@@ -152,7 +189,7 @@ object RetrofitClient {
             .Builder()
 
             .baseUrl(
-                BASE_URL
+                baseUrl
             )
 
             .client(

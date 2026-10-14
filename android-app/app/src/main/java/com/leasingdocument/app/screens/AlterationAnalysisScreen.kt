@@ -3,6 +3,7 @@ package com.leasingdocument.app.screens
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,7 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -52,11 +54,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.leasingdocument.app.network.Agent
 import com.leasingdocument.app.network.AlterationResult
 import com.leasingdocument.app.network.AnalysisRequest
 import com.leasingdocument.app.network.AnalysisReviewRequest
 import com.leasingdocument.app.network.AuthSession
+import com.leasingdocument.app.network.Customer
 import com.leasingdocument.app.network.Document
+import com.leasingdocument.app.network.DocumentType
 import com.leasingdocument.app.network.RetrofitClient
 import com.leasingdocument.app.ocr.DocumentOcrProcessor
 import kotlinx.coroutines.CancellationException
@@ -68,26 +73,83 @@ import retrofit2.Response
 import java.security.MessageDigest
 
 
+private enum class AnalysisAdminPage {
+    AGENTS,
+    CLIENTS,
+    DOCUMENTS,
+    DETAILS
+}
+
+private const val CURRENT_ANALYSIS_VERSION = "document-analysis-6"
+
+
 @Composable
 fun AlterationAnalysisScreen() {
 
-    val scope =
-        rememberCoroutineScope()
+    if (AuthSession.role != "ADMIN") {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFFFF8FB)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Administrator access required.",
+                color = Color(0xFFA13A4B),
+                fontWeight = FontWeight.Bold
+            )
+        }
+        return
+    }
+
+    val scope = rememberCoroutineScope()
+
+    var agents by remember {
+        mutableStateOf<List<Agent>>(emptyList())
+    }
+
+    var customers by remember {
+        mutableStateOf<List<Customer>>(emptyList())
+    }
 
     var documents by remember {
         mutableStateOf<List<Document>>(emptyList())
+    }
+
+    var types by remember {
+        mutableStateOf<List<DocumentType>>(emptyList())
     }
 
     var results by remember {
         mutableStateOf<List<AlterationResult>>(emptyList())
     }
 
-    var selected by remember {
+    var page by remember {
+        mutableStateOf(AnalysisAdminPage.AGENTS)
+    }
+
+    var selectedAgent by remember {
+        mutableStateOf<Agent?>(null)
+    }
+
+    var selectedCustomer by remember {
+        mutableStateOf<Customer?>(null)
+    }
+
+    var selectedDocument by remember {
+        mutableStateOf<Document?>(null)
+    }
+
+    var selectedResult by remember {
         mutableStateOf<AlterationResult?>(null)
     }
 
     var report by remember {
         mutableStateOf<JSONObject?>(null)
+    }
+
+    var sourceImage by remember {
+        mutableStateOf<Bitmap?>(null)
     }
 
     var normalized by remember {
@@ -100,6 +162,10 @@ fun AlterationAnalysisScreen() {
 
     var highlighted by remember {
         mutableStateOf<Bitmap?>(null)
+    }
+
+    var referenceId by remember {
+        mutableStateOf<Long?>(null)
     }
 
     var busy by remember {
@@ -118,34 +184,18 @@ fun AlterationAnalysisScreen() {
         mutableStateOf(false)
     }
 
-
-    // =========================================================
-    // DATA HELPERS
-    // =========================================================
-
     suspend fun refresh() {
+        val api = RetrofitClient.apiService
 
-        documents =
-            requireAnalysisResponse(
-                RetrofitClient
-                    .apiService
-                    .getDocuments()
-            )
-
-        results =
-            requireAnalysisResponse(
-                RetrofitClient
-                    .apiService
-                    .getAlterationResults()
-            )
+        agents = requireAnalysisResponse(api.getAgents())
+        customers = requireAnalysisResponse(api.getCustomers())
+        documents = requireAnalysisResponse(api.getDocuments())
+        types = requireAnalysisResponse(api.getDocumentTypes())
+        results = requireAnalysisResponse(api.getAlterationResults())
     }
 
-
-    suspend fun openResult(
-        row: AlterationResult
-    ) {
-
-        selected = row
+    suspend fun openResult(row: AlterationResult) {
+        selectedResult = row
         report = null
         normalized = null
         cropped = null
@@ -153,1243 +203,1465 @@ fun AlterationAnalysisScreen() {
         notes = ""
         checked = false
 
-
         if (
-            row.analysisStatus !in
-            listOf(
-                "COMPLETED",
-                "INCOMPLETE"
-            )
-            ||
+            row.analysisStatus !in listOf("COMPLETED", "INCOMPLETE") ||
             row.highlightedImagePath == null
         ) {
             return
         }
 
-
-        val body =
-            requireAnalysisResponse(
-                RetrofitClient
-                    .apiService
-                    .getAnalysisReport(
-                        requireNotNull(
-                            row.alterationResultId
-                        )
-                    )
+        val body = requireAnalysisResponse(
+            RetrofitClient.apiService.getAnalysisReport(
+                requireNotNull(row.alterationResultId)
             )
+        )
 
-
-        val parsed =
-            withContext(
-                Dispatchers.IO
-            ) {
-
-                body.use {
-                    JSONObject(
-                        it.string()
-                    )
-                }
-            }
-
-
-        val images =
-            withContext(
-                Dispatchers.Default
-            ) {
-
-                decodeAnalysisImage(
-                    parsed
-                        .optString(
-                            "normalizedImageBase64"
-                        )
-                        .ifBlank {
-                            parsed.getString(
-                                "originalImageBase64"
-                            )
-                        }
-                ) to
-                        parsed
-                            .optString(
-                                "highlightedImageBase64"
-                            )
-                            .takeIf {
-                                it.isNotBlank()
-                            }
-                            ?.let {
-                                decodeAnalysisImage(it)
-                            }
-            }
-
-
-        cropped =
-            withContext(
-                Dispatchers.Default
-            ) {
-
-                parsed
-                    .optString(
-                        "croppedImageBase64"
-                    )
-                    .takeIf {
-                        it.isNotBlank()
-                    }
-                    ?.let {
-                        decodeAnalysisImage(it)
-                    }
-            }
-
-
-        report = parsed
-        normalized = images.first
-        highlighted = images.second
-    }
-
-
-    fun runAction(
-        action: suspend () -> Unit
-    ) {
-
-        if (busy) {
-            return
+        val parsed = withContext(Dispatchers.IO) {
+            body.use { JSONObject(it.string()) }
         }
 
+        val decoded = withContext(Dispatchers.Default) {
+            val normalizedText = parsed
+                .optString("normalizedImageBase64")
+                .takeIf { it.isNotBlank() }
+                ?: parsed
+                    .optString("originalImageBase64")
+                    .takeIf { it.isNotBlank() }
+
+            val normalizedBitmap = normalizedText?.let(::decodeAnalysisImage)
+
+            val croppedBitmap = parsed
+                .optString("croppedImageBase64")
+                .takeIf { it.isNotBlank() }
+                ?.let(::decodeAnalysisImage)
+
+            val highlightedBitmap = parsed
+                .optString("highlightedImageBase64")
+                .takeIf { it.isNotBlank() }
+                ?.let(::decodeAnalysisImage)
+
+            Triple(normalizedBitmap, croppedBitmap, highlightedBitmap)
+        }
+
+        report = parsed
+        normalized = decoded.first
+        cropped = decoded.second
+        highlighted = decoded.third
+    }
+
+    suspend fun openDocument(doc: Document) {
+        selectedDocument = doc
+        selectedResult = results
+            .filter { it.documentId == doc.documentId }
+            .maxByOrNull { it.alterationResultId ?: 0L }
+
+        report = null
+        sourceImage = null
+        normalized = null
+        cropped = null
+        highlighted = null
+        referenceId = null
+        notes = ""
+        checked = false
+        page = AnalysisAdminPage.DETAILS
+
+        val fileName = requireNotNull(doc.fileName) {
+            "This document has no stored image filename."
+        }
+
+        val body = requireAnalysisResponse(
+            RetrofitClient.apiService.getDocumentImage(fileName)
+        )
+
+        val bytes = withContext(Dispatchers.IO) {
+            body.use { it.bytes() }
+        }
+
+        try {
+            sourceImage = withContext(Dispatchers.Default) {
+                decodeAnalysisImage(bytes)
+            }
+        } finally {
+            bytes.fill(0)
+        }
+
+        selectedResult?.let { latest ->
+            if (latest.analysisStatus in listOf("COMPLETED", "INCOMPLETE")) {
+                openResult(latest)
+            }
+        }
+    }
+
+    suspend fun runAnalysis(doc: Document) {
+        val fileName = requireNotNull(doc.fileName) {
+            "Missing document filename."
+        }
+
+        val body = requireAnalysisResponse(
+            RetrofitClient.apiService.getDocumentImage(fileName)
+        )
+
+        val bytes = withContext(Dispatchers.IO) {
+            body.use { it.bytes() }
+        }
+
+        try {
+            val ocrJson = DocumentOcrProcessor.extract(bytes)
+
+            val digest = withContext(Dispatchers.Default) {
+                MessageDigest
+                    .getInstance("SHA-256")
+                    .digest(bytes)
+                    .joinToString("") {
+                        "%02x".format(it.toInt() and 255)
+                    }
+            }
+
+            val newResult = requireAnalysisResponse(
+                RetrofitClient.apiService.analyzeDocument(
+                    requireNotNull(doc.documentId),
+                    AnalysisRequest(
+                        digest,
+                        ocrJson,
+                        referenceId
+                    )
+                )
+            )
+
+            refresh()
+            openResult(newResult)
+
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
+    fun runAction(action: suspend () -> Unit) {
+        if (busy) return
 
         scope.launch {
-
             busy = true
             message = ""
 
             try {
-
                 action()
-
-            } catch (
-                e: CancellationException
-            ) {
-
+            } catch (e: CancellationException) {
                 throw e
-
-            } catch (
-                e: Exception
-            ) {
-
-                message =
-                    e.message
-                        ?: "Operation failed. Check the connection and retry."
-
+            } catch (e: Exception) {
+                message = e.message
+                    ?: "Operation failed. Check the connection and retry."
             } finally {
-
                 busy = false
             }
         }
     }
 
+    fun goBack() {
+        when (page) {
+            AnalysisAdminPage.DETAILS -> {
+                page = AnalysisAdminPage.DOCUMENTS
+                selectedDocument = null
+                selectedResult = null
+                report = null
+                sourceImage = null
+                normalized = null
+                cropped = null
+                highlighted = null
+                referenceId = null
+                notes = ""
+                checked = false
+            }
 
-    // =========================================================
-    // INITIAL LOAD
-    // =========================================================
+            AnalysisAdminPage.DOCUMENTS -> {
+                page = AnalysisAdminPage.CLIENTS
+                selectedCustomer = null
+            }
+
+            AnalysisAdminPage.CLIENTS -> {
+                page = AnalysisAdminPage.AGENTS
+                selectedAgent = null
+            }
+
+            AnalysisAdminPage.AGENTS -> Unit
+        }
+
+        message = ""
+    }
+
+    BackHandler(
+        enabled = page != AnalysisAdminPage.AGENTS && !busy
+    ) {
+        goBack()
+    }
 
     LaunchedEffect(Unit) {
-
         busy = true
-
         try {
-
             refresh()
-
-        } catch (
-            e: CancellationException
-        ) {
-
+        } catch (e: CancellationException) {
             throw e
-
-        } catch (
-            e: Exception
-        ) {
-
-            message =
-                e.message
-                    ?: "Cannot load documents"
-
+        } catch (e: Exception) {
+            message = e.message ?: "Cannot load alteration analysis data."
         } finally {
-
             busy = false
         }
     }
 
-
-    // =========================================================
-    // AUTHORIZATION
-    // =========================================================
-
-    if (
-        AuthSession.role !=
-        "ADMIN"
-    ) {
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Color(0xFFFFF8FB)
-                ),
-
-            contentAlignment =
-                Alignment.Center
-        ) {
-
-            Text(
-                text =
-                    "Administrator access required.",
-
-                color =
-                    Color(0xFFA13A4B),
-
-                fontWeight =
-                    FontWeight.Bold
-            )
-        }
-
-        return
+    val agentDocuments = documents.filter {
+        it.agentId != null && it.agentId == selectedAgent?.agentId
     }
 
+    val clientDocuments = agentDocuments.filter {
+        it.customerId != null && it.customerId == selectedCustomer?.customerId
+    }
 
-    // =========================================================
-    // ROOT
-    // =========================================================
+    val uniqueCustomers = agentDocuments
+        .mapNotNull { it.customerId }
+        .toSet()
+        .mapNotNull { id -> customers.firstOrNull { it.customerId == id } }
+        .sortedBy { it.fullName.orEmpty() }
+
+    val selectedType = selectedDocument?.let { doc ->
+        types.firstOrNull {
+            it.documentTypeId == doc.documentTypeId
+        }
+    }
+
+    val referenceCandidates = selectedDocument?.let { doc ->
+        val typeCode = selectedType?.typeCode
+
+        if (typeCode in setOf("SALARY_SLIP", "UTILITY_BILL")) {
+            emptyList()
+        } else {
+            documents
+                .filter { other ->
+                    other.documentId != null &&
+                            doc.documentId != null &&
+                            other.documentId < doc.documentId &&
+                            other.customerId == doc.customerId &&
+                            other.documentTypeId == doc.documentTypeId &&
+                            other.captureSource == "LIVE_CAMERA" &&
+                            other.qualityStatus == "PASSED" &&
+                            other.blurPassed == true &&
+                            other.brightnessPassed == true &&
+                            other.resolutionPassed == true &&
+                            results
+                                .filter { it.documentId == other.documentId }
+                                .maxByOrNull { it.alterationResultId ?: 0L }
+                                ?.let {
+                                    it.analysisStatus == "COMPLETED" &&
+                                            it.finalDecision == "APPROVED" &&
+                                            it.reviewStatus == "REVIEWED" &&
+                                            it.algorithmVersion in setOf(
+                                        "document-analysis-4",
+                                        "document-analysis-5",
+                                        CURRENT_ANALYSIS_VERSION
+                                    )
+                                } == true
+                }
+                .sortedByDescending { it.documentId ?: 0L }
+        }
+    }.orEmpty()
+
+    val locationText = when (page) {
+        AnalysisAdminPage.AGENTS -> "Agents"
+        AnalysisAdminPage.CLIENTS ->
+            "${selectedAgent?.fullName.orEmpty()}  •  Clients"
+        AnalysisAdminPage.DOCUMENTS ->
+            "${selectedCustomer?.fullName.orEmpty()}  •  Documents"
+        AnalysisAdminPage.DETAILS ->
+            "Document #${selectedDocument?.documentId ?: "-"}  •  Details"
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors =
-                        listOf(
-                            Color(0xFFFFFCFB),
-                            Color(0xFFFFF8FB),
-                            Color(0xFFF8F2FF)
-                        )
+                    colors = listOf(
+                        Color(0xFFFFFCFB),
+                        Color(0xFFFFF8FB),
+                        Color(0xFFF8F2FF)
+                    )
                 )
             )
     ) {
-
-
-        // =====================================================
-        // BACKGROUND DECORATION
-        // =====================================================
-
         Canvas(
-            modifier =
-                Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize()
         ) {
+            val w = size.width
+            val h = size.height
 
-            val w =
-                size.width
-
-            val h =
-                size.height
-
-
-            val topShape =
-                Path().apply {
-
-                    moveTo(
-                        0f,
-                        0f
-                    )
-
-                    lineTo(
-                        w * 0.72f,
-                        0f
-                    )
-
-                    cubicTo(
-                        w * 0.58f,
-                        h * 0.028f,
-
-                        w * 0.40f,
-                        h * 0.060f,
-
-                        0f,
-                        h * 0.16f
-                    )
-
-                    close()
-                }
-
+            val topShape = Path().apply {
+                moveTo(0f, 0f)
+                lineTo(w * 0.72f, 0f)
+                cubicTo(
+                    w * 0.58f,
+                    h * 0.028f,
+                    w * 0.40f,
+                    h * 0.060f,
+                    0f,
+                    h * 0.16f
+                )
+                close()
+            }
 
             drawPath(
-                path =
-                    topShape,
-
-                brush =
-                    Brush.linearGradient(
-                        colors =
-                            listOf(
-                                Color(0xFFFFD1AF)
-                                    .copy(
-                                        alpha =
-                                            0.58f
-                                    ),
-
-                                Color(0xFFFFE8DE)
-                                    .copy(
-                                        alpha =
-                                            0.24f
-                                    ),
-
-                                Color.Transparent
-                            )
+                path = topShape,
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFFFFD1AF).copy(alpha = 0.58f),
+                        Color(0xFFFFE8DE).copy(alpha = 0.24f),
+                        Color.Transparent
                     )
+                )
             )
 
-
-            val ribbon =
-                Path().apply {
-
-                    moveTo(
-                        0f,
-                        h * 0.075f
-                    )
-
-                    cubicTo(
-                        w * 0.19f,
-                        h * 0.052f,
-
-                        w * 0.35f,
-                        h * 0.080f,
-
-                        w * 0.58f,
-                        h * 0.022f
-                    )
-                }
-
+            val ribbon = Path().apply {
+                moveTo(0f, h * 0.075f)
+                cubicTo(
+                    w * 0.19f,
+                    h * 0.052f,
+                    w * 0.35f,
+                    h * 0.080f,
+                    w * 0.58f,
+                    h * 0.022f
+                )
+            }
 
             drawPath(
-                path =
-                    ribbon,
-
-                color =
-                    Color(0xFFFF8B42)
-                        .copy(
-                            alpha =
-                                0.70f
-                        ),
-
-                style =
-                    Stroke(
-                        width =
-                            1.1.dp.toPx()
-                    )
+                path = ribbon,
+                color = Color(0xFFFF8B42).copy(alpha = 0.70f),
+                style = Stroke(width = 1.1.dp.toPx())
             )
-
 
             drawCircle(
-                brush =
-                    Brush.radialGradient(
-                        colors =
-                            listOf(
-                                Color(0xFF9F47DD)
-                                    .copy(
-                                        alpha =
-                                            0.08f
-                                    ),
-
-                                Color.Transparent
-                            )
-                    ),
-
-                radius =
-                    w * 0.75f,
-
-                center =
-                    Offset(
-                        x =
-                            w * 0.55f,
-
-                        y =
-                            h
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFF9F47DD).copy(alpha = 0.08f),
+                        Color.Transparent
                     )
+                ),
+                radius = w * 0.75f,
+                center = Offset(
+                    x = w * 0.55f,
+                    y = h
+                )
             )
         }
 
-
-        // =====================================================
-        // MAIN CONTENT
-        // =====================================================
-
         LazyColumn(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .padding(
-                        horizontal =
-                            22.dp
-                    ),
-
-            verticalArrangement =
-                Arrangement.spacedBy(
-                    12.dp
-                )
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-
-
             item {
-
-                Spacer(
-                    modifier =
-                        Modifier.height(
-                            18.dp
-                        )
-                )
-
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
-                    text =
-                        "Alteration Analysis",
-
-                    fontSize =
-                        27.sp,
-
-                    fontWeight =
-                        FontWeight.Bold,
-
-                    color =
-                        Color(0xFF171A2C)
+                    text = "Alteration Analysis",
+                    fontSize = 27.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF171A2C)
                 )
 
-
-                Spacer(
-                    modifier =
-                        Modifier.height(
-                            4.dp
-                        )
-                )
-
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text =
-                        "Screen submitted documents for possible alterations and review supporting evidence.",
-
-                    fontSize =
-                        12.sp,
-
-                    lineHeight =
-                        17.sp,
-
-                    color =
-                        Color(0xFF817A8B)
+                    text = "Review submissions by agent and client, compare registered data with OCR, and inspect Component 4 v6 alteration evidence.",
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = Color(0xFF817A8B)
                 )
             }
 
-
             item {
-
                 AnalysisOverviewCard(
-                    documentCount =
-                        documents.size,
-
-                    resultCount =
-                        results.size,
-
-                    highRiskCount =
-                        results.count {
-                            it.riskLevel
-                                ?.equals(
-                                    "HIGH",
-                                    ignoreCase = true
-                                ) == true
-                        }
+                    documentCount = documents.size,
+                    resultCount = results.size,
+                    highRiskCount = results.count {
+                        it.riskLevel?.equals("HIGH", ignoreCase = true) == true
+                    }
                 )
             }
 
+            item {
+                AnalysisLocationCard(
+                    location = locationText,
+                    busy = busy,
+                    onRefresh = {
+                        runAction { refresh() }
+                    }
+                )
+            }
 
             if (busy) {
-
                 item {
-
                     Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(
-                                    RoundedCornerShape(
-                                        16.dp
-                                    )
-                                )
-                                .background(
-                                    Color(0xFFF4EFFA)
-                                )
-                                .padding(
-                                    14.dp
-                                )
-                    ) {
-
-                        Column {
-
-                            LinearProgressIndicator(
-                                modifier =
-                                    Modifier.fillMaxWidth()
-                            )
-
-
-                            Spacer(
-                                modifier =
-                                    Modifier.height(
-                                        8.dp
-                                    )
-                            )
-
-
-                            Text(
-                                text =
-                                    "Working… analysis may take several minutes.",
-
-                                fontSize =
-                                    11.sp,
-
-                                color =
-                                    Color(0xFF6C5B7A)
-                            )
-                        }
-                    }
-                }
-            }
-
-
-            if (
-                message.isNotBlank()
-            ) {
-
-                item {
-
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(
-                                    RoundedCornerShape(
-                                        16.dp
-                                    )
-                                )
-                                .background(
-                                    Color(0xFFFFEEF1)
-                                )
-                                .padding(
-                                    14.dp
-                                )
-                    ) {
-
-                        Text(
-                            text =
-                                message,
-
-                            fontSize =
-                                12.sp,
-
-                            color =
-                                Color(0xFFA13A4B)
-                        )
-                    }
-                }
-            }
-
-
-            item {
-
-                Box(
-                    modifier =
-                        Modifier
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .clip(
-                                RoundedCornerShape(
-                                    16.dp
-                                )
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF4EFFA))
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth()
                             )
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors =
-                                        listOf(
-                                            Color(0xFF6950B7),
-                                            Color(0xFF9E4FC4),
-                                            Color(0xFFD34D92)
-                                        )
-                                )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Working… analysis may take several minutes.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF6C5B7A)
                             )
-                            .clickable(
-                                enabled =
-                                    !busy
-                            ) {
-
-                                runAction {
-                                    refresh()
-                                }
-                            }
-                            .padding(
-                                vertical =
-                                    14.dp
-                            ),
-
-                    contentAlignment =
-                        Alignment.Center
-                ) {
-
-                    Text(
-                        text =
-                            "REFRESH DOCUMENTS & RESULTS",
-
-                        color =
-                            Color.White,
-
-                        fontSize =
-                            11.sp,
-
-                        fontWeight =
-                            FontWeight.Bold,
-
-                        letterSpacing =
-                            0.5.sp
-                    )
+                        }
+                    }
                 }
             }
 
-
-            // =================================================
-            // SELECTED RESULT
-            // =================================================
-
-            selected?.let {
-                    row ->
-
+            if (message.isNotBlank()) {
                 item {
-
-                    AnalysisResultCard(
-                        row =
-                            row
-                    )
-                }
-
-
-                report?.let {
-                        details ->
-
-                    item {
-
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFFFEEF1))
+                            .padding(14.dp)
+                    ) {
                         Text(
-                            text =
-                                "Analysis Evidence",
+                            text = message,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = Color(0xFFA13A4B)
+                        )
+                    }
+                }
+            }
 
-                            fontSize =
-                                18.sp,
-
-                            fontWeight =
-                                FontWeight.Bold,
-
-                            color =
-                                Color(0xFF1B1D30)
+            when (page) {
+                AnalysisAdminPage.AGENTS -> {
+                    item {
+                        AnalysisSectionHeading(
+                            title = "Select an Agent",
+                            subtitle = "Open an agent to see the clients represented in their submitted documents."
                         )
                     }
 
-
-                    cropped?.let {
-                            bitmap ->
-
-                        item {
-
-                            AnalysisEvidenceCard(
-                                title =
-                                    "Cropped Document",
-
-                                subtitle =
-                                    "Check the detected document boundary."
-                            ) {
-
-                                AnalysisPreview(
-                                    bitmap =
-                                        bitmap,
-
-                                    description =
-                                        "Cropped document"
-                                )
-                            }
+                    val visibleAgents = agents
+                        .filter { agent ->
+                            documents.any { it.agentId == agent.agentId }
                         }
+                        .sortedBy { it.fullName.orEmpty() }
+
+                    items(
+                        items = visibleAgents,
+                        key = { it.agentId ?: it.hashCode().toLong() }
+                    ) { agent ->
+                        val count = documents.count {
+                            it.agentId == agent.agentId
+                        }
+
+                        AnalysisNavigationCard(
+                            eyebrow = "AGENT",
+                            title = agent.fullName ?: "Agent #${agent.agentId ?: "-"}",
+                            subtitle = agent.email.orEmpty().ifBlank {
+                                "No email recorded"
+                            },
+                            meta = "$count submitted document${if (count == 1) "" else "s"}",
+                            enabled = !busy,
+                            onClick = {
+                                selectedAgent = agent
+                                selectedCustomer = null
+                                selectedDocument = null
+                                page = AnalysisAdminPage.CLIENTS
+                                message = ""
+                            }
+                        )
                     }
 
-
-                    item {
-
-                        AnalysisEvidenceCard(
-                            title =
-                                if (
-                                    row.analysisStatus ==
-                                    "INCOMPLETE"
-                                ) {
-
-                                    "Original Document"
-
-                                } else {
-
-                                    "Template-Aligned Document"
-                                },
-
-                            subtitle =
-                                if (
-                                    row.analysisStatus ==
-                                    "INCOMPLETE"
-                                ) {
-
-                                    "Analysis is incomplete."
-
-                                } else {
-
-                                    "Image used by the analysis pipeline."
-                                }
-                        ) {
-
-                            normalized?.let {
-                                    bitmap ->
-
-                                AnalysisPreview(
-                                    bitmap =
-                                        bitmap,
-
-                                    description =
-                                        "Document image"
-                                )
-                            }
-                        }
-                    }
-
-
-                    highlighted?.let {
-                            bitmap ->
-
+                    if (visibleAgents.isEmpty()) {
                         item {
-
-                            AnalysisEvidenceCard(
-                                title =
-                                    "Highlighted Candidate Areas",
-
-                                subtitle =
-                                    "Highlighted regions require manual checking."
-                            ) {
-
-                                AnalysisPreview(
-                                    bitmap =
-                                        bitmap,
-
-                                    description =
-                                        "Candidate areas"
-                                )
-                            }
-                        }
-                    }
-
-
-                    if (
-                        row.analysisStatus ==
-                        "INCOMPLETE"
-                    ) {
-
-                        item {
-
                             AnalysisInfoNotice(
-                                text =
-                                    "No alteration score or highlights are available. Recapture or refer for manual investigation."
+                                text = "No agent submissions are available for alteration analysis."
                             )
                         }
                     }
+                }
 
-
+                AnalysisAdminPage.CLIENTS -> {
                     item {
-
-                        AnalysisTextSection(
-                            title =
-                                "Alignment",
-
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "alignment"
-                                    )
-                                    ?.toString(
-                                        2
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No alignment details available."
-                                    }
+                        AnalysisSectionHeading(
+                            title = "Clients Submitted by This Agent",
+                            subtitle = selectedAgent?.fullName
+                                ?: "Selected agent"
                         )
                     }
 
+                    items(
+                        items = uniqueCustomers,
+                        key = { it.customerId ?: it.hashCode().toLong() }
+                    ) { customer ->
+                        val count = agentDocuments.count {
+                            it.customerId == customer.customerId
+                        }
 
-                    item {
-
-                        AnalysisTextSection(
-                            title =
-                                "Reason Code",
-
-                            value =
-                                details
-                                    .optString(
-                                        "reasonCode"
-                                    )
-                                    .ifBlank {
-                                        "No reason code available."
-                                    }
+                        AnalysisNavigationCard(
+                            eyebrow = "CLIENT",
+                            title = customer.fullName
+                                ?: "Client #${customer.customerId ?: "-"}",
+                            subtitle = "NIC: ${customer.nic ?: "Not entered"}",
+                            meta = "$count document${if (count == 1) "" else "s"}",
+                            enabled = !busy,
+                            onClick = {
+                                selectedCustomer = customer
+                                selectedDocument = null
+                                page = AnalysisAdminPage.DOCUMENTS
+                                message = ""
+                            }
                         )
                     }
 
+                    if (uniqueCustomers.isEmpty()) {
+                        item {
+                            AnalysisInfoNotice(
+                                text = "No registered clients were found for this agent's documents."
+                            )
+                        }
+                    }
+                }
 
+                AnalysisAdminPage.DOCUMENTS -> {
                     item {
-
-                        AnalysisTextSection(
-                            title =
-                                "OCR Text",
-
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "ocr"
-                                    )
-                                    ?.optString(
-                                        "fullText"
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No text recognized."
-                                    }
+                        AnalysisSectionHeading(
+                            title = "Client Documents",
+                            subtitle = selectedCustomer?.fullName
+                                ?: "Selected client"
                         )
                     }
 
+                    items(
+                        items = clientDocuments.sortedByDescending {
+                            it.documentId ?: 0L
+                        },
+                        key = { it.documentId ?: it.hashCode().toLong() }
+                    ) { doc ->
+                        val type = types.firstOrNull {
+                            it.documentTypeId == doc.documentTypeId
+                        }
 
-                    item {
+                        val latest = results
+                            .filter { it.documentId == doc.documentId }
+                            .maxByOrNull { it.alterationResultId ?: 0L }
 
-                        AnalysisTextSection(
-                            title =
-                                "Extracted Candidates",
+                        val latestText = when {
+                            latest?.riskLevel != null ->
+                                "${latest.riskLevel} risk"
+                            latest?.analysisStatus != null ->
+                                latest.analysisStatus
+                            else ->
+                                "Not analysed"
+                        }
 
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "ocr"
-                                    )
-                                    ?.optJSONObject(
-                                        "fields"
-                                    )
-                                    ?.toString(
-                                        2
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No extracted candidates."
-                                    }
+                        AnalysisNavigationCard(
+                            eyebrow = type?.typeCode ?: "DOCUMENT",
+                            title = type?.typeName
+                                ?: "Document #${doc.documentId ?: "-"}",
+                            subtitle = "Document #${doc.documentId ?: "-"}  •  ${doc.qualityStatus ?: "Quality unknown"}",
+                            meta = latestText,
+                            enabled = !busy,
+                            onClick = {
+                                runAction {
+                                    openDocument(doc)
+                                }
+                            }
                         )
                     }
 
-
-                    item {
-
-                        AnalysisTextSection(
-                            title =
-                                "OCR Issues",
-
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "ocr_validation"
-                                    )
-                                    ?.optJSONArray(
-                                        "issues"
-                                    )
-                                    ?.toString(
-                                        2
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No OCR issues reported."
-                                    }
-                        )
+                    if (clientDocuments.isEmpty()) {
+                        item {
+                            AnalysisInfoNotice(
+                                text = "This agent has no documents for the selected client."
+                            )
+                        }
                     }
+                }
 
+                AnalysisAdminPage.DETAILS -> {
+                    val doc = selectedDocument
 
-                    item {
-
-                        AnalysisTextSection(
-                            title =
-                                "Analysis Coverage",
-
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "altered_text_localization"
-                                    )
-                                    ?.optString(
-                                        "coverage_note"
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No coverage note available."
-                                    }
-                        )
-                    }
-
-
-                    item {
-
-                        AnalysisTextSection(
-                            title =
-                                "Detector Coverage",
-
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "risk_details"
-                                    )
-                                    ?.optJSONObject(
-                                        "detector_coverage"
-                                    )
-                                    ?.toString(
-                                        2
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No detector coverage details."
-                                    }
-                        )
-                    }
-
-
-                    item {
-
-                        AnalysisTextSection(
-                            title =
-                                "Detector Findings",
-
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "risk_details"
-                                    )
-                                    ?.optJSONArray(
-                                        "findings"
-                                    )
-                                    ?.toString(
-                                        2
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No detector findings."
-                                    }
-                        )
-                    }
-
-
-                    item {
-
-                        AnalysisTextSection(
-                            title =
-                                "Detector Scores",
-
-                            subtitle =
-                                "Uncalibrated screening indicators",
-
-                            value =
-                                details
-                                    .optJSONObject(
-                                        "risk_details"
-                                    )
-                                    ?.optJSONObject(
-                                        "component_scores"
-                                    )
-                                    ?.toString(
-                                        2
-                                    )
-                                    .orEmpty()
-                                    .ifBlank {
-                                        "No component scores available."
-                                    }
-                        )
-                    }
-
-
-                    if (
-                        row.finalDecision ==
-                        null
-                    ) {
+                    if (doc == null) {
+                        item {
+                            AnalysisInfoNotice(
+                                text = "The selected document is no longer available. Go back and refresh."
+                            )
+                        }
+                    } else {
+                        item {
+                            AnalysisSectionHeading(
+                                title = "Document Review Workspace",
+                                subtitle = "Document #${doc.documentId ?: "-"}"
+                            )
+                        }
 
                         item {
-
-                            ManualReviewCard(
-                                notes =
-                                    notes,
-
-                                checked =
-                                    checked,
-
-                                busy =
-                                    busy,
-
-                                onNotesChange = {
-                                        value ->
-
-                                    if (
-                                        value.length <=
-                                        1000
-                                    ) {
-
-                                        notes =
-                                            value
-                                    }
-                                },
-
-                                onCheckedChange = {
-                                        value ->
-
-                                    checked =
-                                        value
-                                },
-
-                                decisions =
-                                    if (
-                                        row.riskLevel ==
-                                        "HIGH"
-                                        ||
-                                        row.analysisStatus ==
-                                        "INCOMPLETE"
-                                        ||
-                                        row.algorithmVersion !=
-                                        "document-analysis-4"
-                                    ) {
-
-                                        listOf(
-                                            "REFERRED_FOR_INVESTIGATION"
-                                        )
-
-                                    } else {
-
-                                        listOf(
-                                            "APPROVED",
-                                            "REJECTED",
-                                            "REFERRED_FOR_INVESTIGATION"
-                                        )
-                                    },
-
-                                onDecision = {
-                                        decision ->
-
-                                    runAction {
-
-                                        selected =
-                                            requireAnalysisResponse(
-                                                RetrofitClient
-                                                    .apiService
-                                                    .reviewAnalysis(
-                                                        requireNotNull(
-                                                            row.alterationResultId
-                                                        ),
-
-                                                        AnalysisReviewRequest(
-                                                            decision,
-                                                            notes
-                                                        )
-                                                    )
-                                            )
-
-                                        refresh()
-                                    }
-                                }
+                            AnalysisDetailCard(
+                                title = "Registered Client",
+                                rows = listOf(
+                                    "Name" to (selectedCustomer?.fullName ?: "-"),
+                                    "NIC" to (selectedCustomer?.nic ?: "-"),
+                                    "Phone" to (selectedCustomer?.phone ?: "-"),
+                                    "Email" to (selectedCustomer?.email ?: "-"),
+                                    "Submitted By" to (selectedAgent?.fullName ?: "-")
+                                )
                             )
                         }
-                    }
-                }
-            }
 
-
-            item {
-
-                Spacer(
-                    modifier =
-                        Modifier.height(
-                            4.dp
-                        )
-                )
-
-
-                Text(
-                    text =
-                        "Submitted Documents",
-
-                    fontSize =
-                        18.sp,
-
-                    fontWeight =
-                        FontWeight.Bold,
-
-                    color =
-                        Color(0xFF1B1D30)
-                )
-            }
-
-
-            // =================================================
-            // DOCUMENT LIST
-            // =================================================
-
-            items(
-                items =
-                    documents,
-
-                key = {
-                    it.documentId
-                        ?: it.hashCode()
-                }
-            ) {
-                    doc ->
-
-                val latest =
-                    results
-                        .filter {
-                            it.documentId ==
-                                    doc.documentId
-                        }
-                        .maxByOrNull {
-                            it.alterationResultId
-                                ?: 0
+                        item {
+                            AnalysisDetailCard(
+                                title = "Document Details",
+                                rows = listOf(
+                                    "Document ID" to (doc.documentId?.toString() ?: "-"),
+                                    "Type" to (selectedType?.typeName ?: "Unknown"),
+                                    "Type Code" to (selectedType?.typeCode ?: "Unknown"),
+                                    "Captured" to (doc.captureDateTime ?: "Unknown"),
+                                    "Capture Source" to (doc.captureSource ?: "Unknown"),
+                                    "Quality" to (doc.qualityStatus ?: "Unknown"),
+                                    "Processing" to (doc.processingStatus ?: "Unknown"),
+                                    "C4 Analysis" to if (selectedType?.analysisEnabled == true) "Enabled" else "Disabled"
+                                )
+                            )
                         }
 
-
-                SubmittedDocumentCard(
-                    doc =
-                        doc,
-
-                    latest =
-                        latest,
-
-                    busy =
-                        busy,
-
-                    onViewResult = {
-
-                        if (
-                            latest !=
-                            null
-                        ) {
-
-                            runAction {
-                                openResult(
-                                    latest
+                        item {
+                            AnalysisEvidenceCard(
+                                title = "Submitted Original",
+                                subtitle = "Securely retrieved document image used for OCR and alteration analysis."
+                            ) {
+                                sourceImage?.let { bitmap ->
+                                    AnalysisPreview(
+                                        bitmap = bitmap,
+                                        description = "Submitted document"
+                                    )
+                                } ?: Text(
+                                    text = "Image is not available.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF817A8B)
                                 )
                             }
                         }
-                    },
 
-                    onRunAnalysis = {
+                        selectedResult?.let { row ->
+                            item {
+                                AnalysisResultCard(row = row)
+                            }
+                        }
 
-                        runAction {
+                        item {
+                            AnalysisReferenceSelector(
+                                typeCode = selectedType?.typeCode,
+                                candidates = referenceCandidates,
+                                selectedId = referenceId,
+                                busy = busy,
+                                onSelect = { selected ->
+                                    referenceId = selected
+                                }
+                            )
+                        }
 
-                            val imageBody =
-                                requireAnalysisResponse(
-                                    RetrofitClient
-                                        .apiService
-                                        .getDocumentImage(
-                                            requireNotNull(
-                                                doc.fileName
-                                            )
-                                        )
-                                )
+                        item {
+                            val canAnalyze =
+                                !busy &&
+                                        selectedType?.analysisEnabled == true &&
+                                        doc.captureSource == "LIVE_CAMERA" &&
+                                        doc.qualityStatus == "PASSED" &&
+                                        doc.blurPassed == true &&
+                                        doc.brightnessPassed == true &&
+                                        doc.resolutionPassed == true
 
-
-                            val bytes =
-                                withContext(
-                                    Dispatchers.IO
-                                ) {
-
-                                    imageBody.use {
-                                        it.bytes()
+                            AnalysisPrimaryAction(
+                                text = if (selectedResult == null) {
+                                    "RUN OCR & COMPONENT 4 V6 ANALYSIS"
+                                } else {
+                                    "RUN NEW COMPONENT 4 V6 ANALYSIS"
+                                },
+                                enabled = canAnalyze,
+                                onClick = {
+                                    runAction {
+                                        runAnalysis(doc)
                                     }
                                 }
+                            )
 
+                            if (selectedType?.analysisEnabled != true) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                AnalysisInfoNotice(
+                                    text = "Alteration analysis is disabled for this document type."
+                                )
+                            }
+                        }
 
-                            try {
-
-                                val ocr =
-                                    DocumentOcrProcessor
-                                        .extract(
-                                            bytes
+                        report?.let { details ->
+                            item {
+                                AnalysisTextSection(
+                                    title = "Verification Context",
+                                    subtitle = "Component 4 v6 provenance",
+                                    value = buildString {
+                                        append("Verification: ")
+                                        append(
+                                            details.optString(
+                                                "verificationStatus",
+                                                "NOT AVAILABLE"
+                                            )
                                         )
-
-
-                                val hash =
-                                    withContext(
-                                        Dispatchers.Default
-                                    ) {
-
-                                        MessageDigest
-                                            .getInstance(
-                                                "SHA-256"
-                                            )
-                                            .digest(
-                                                bytes
-                                            )
-                                            .joinToString(
-                                                ""
-                                            ) {
-                                                "%02x".format(
-                                                    it.toInt()
-                                                            and 255
-                                                )
+                                        append("\nReference supplied: ")
+                                        append(
+                                            if (details.optBoolean("referenceSupplied", false)) {
+                                                "Yes"
+                                            } else {
+                                                "No"
+                                            }
+                                        )
+                                        details
+                                            .optString("referenceProvenanceNotice")
+                                            .takeIf { it.isNotBlank() }
+                                            ?.let {
+                                                append("\n")
+                                                append(it)
                                             }
                                     }
+                                )
+                            }
 
+                            item {
+                                AnalysisCustomerComparisonCard(
+                                    customer = selectedCustomer,
+                                    details = details
+                                )
+                            }
 
-                                val row =
-                                    requireAnalysisResponse(
-                                        RetrofitClient
-                                            .apiService
-                                            .analyzeDocument(
-                                                requireNotNull(
-                                                    doc.documentId
-                                                ),
+                            cropped?.let { bitmap ->
+                                item {
+                                    AnalysisEvidenceCard(
+                                        title = "Cropped Document",
+                                        subtitle = "Detected document boundary used by the analysis pipeline."
+                                    ) {
+                                        AnalysisPreview(
+                                            bitmap = bitmap,
+                                            description = "Cropped document"
+                                        )
+                                    }
+                                }
+                            }
 
-                                                AnalysisRequest(
-                                                    hash,
-                                                    ocr
-                                                )
-                                            )
+                            normalized?.let { bitmap ->
+                                item {
+                                    AnalysisEvidenceCard(
+                                        title = if (
+                                            selectedResult?.analysisStatus == "INCOMPLETE"
+                                        ) {
+                                            "Original Document"
+                                        } else {
+                                            "Template-Aligned Document"
+                                        },
+                                        subtitle = if (
+                                            selectedResult?.analysisStatus == "INCOMPLETE"
+                                        ) {
+                                            "Analysis is incomplete; this preview is not a verification result."
+                                        } else {
+                                            "Image used by the Component 4 analysis pipeline."
+                                        }
+                                    ) {
+                                        AnalysisPreview(
+                                            bitmap = bitmap,
+                                            description = "Analysis document image"
+                                        )
+                                    }
+                                }
+                            }
+
+                            highlighted?.let { bitmap ->
+                                item {
+                                    AnalysisEvidenceCard(
+                                        title = "Highlighted Candidate Areas",
+                                        subtitle = "Highlighted regions are review indicators and require human checking."
+                                    ) {
+                                        AnalysisPreview(
+                                            bitmap = bitmap,
+                                            description = "Highlighted candidate areas"
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (selectedResult?.analysisStatus == "INCOMPLETE") {
+                                item {
+                                    AnalysisInfoNotice(
+                                        text = "No complete alteration conclusion is available. Recapture or refer the document for investigation."
                                     )
+                                }
+                            }
 
-
-                                refresh()
-
-                                openResult(
-                                    row
+                            item {
+                                AnalysisTextSection(
+                                    title = "OCR Text",
+                                    value = details
+                                        .optJSONObject("ocr")
+                                        ?.optString("fullText")
+                                        .orEmpty()
+                                        .ifBlank { "No text recognized." }
                                 )
+                            }
 
-                            } finally {
-
-                                bytes.fill(
-                                    0
+                            item {
+                                AnalysisTextSection(
+                                    title = "Extracted Candidates",
+                                    value = details
+                                        .optJSONObject("ocr")
+                                        ?.optJSONObject("fields")
+                                        ?.toString(2)
+                                        .orEmpty()
+                                        .ifBlank { "No extracted candidates." }
                                 )
+                            }
+
+                            item {
+                                AnalysisTextSection(
+                                    title = "OCR Validation",
+                                    value = details
+                                        .optJSONObject("ocr_validation")
+                                        ?.toString(2)
+                                        .orEmpty()
+                                        .ifBlank { "No OCR validation details available." }
+                                )
+                            }
+
+                            item {
+                                AnalysisTextSection(
+                                    title = "Same-Document Verification",
+                                    value = details
+                                        .optJSONObject("same_document_verification")
+                                        ?.toString(2)
+                                        .orEmpty()
+                                        .ifBlank { "No trusted same-document comparison was recorded." }
+                                )
+                            }
+
+                            item {
+                                AnalysisTextSection(
+                                    title = "Detector Coverage",
+                                    value = details
+                                        .optJSONObject("risk_details")
+                                        ?.optJSONObject("detector_coverage")
+                                        ?.toString(2)
+                                        .orEmpty()
+                                        .ifBlank { "No detector coverage details." }
+                                )
+                            }
+
+                            item {
+                                AnalysisTextSection(
+                                    title = "Alteration Findings",
+                                    value = details
+                                        .optJSONObject("risk_details")
+                                        ?.optJSONArray("findings")
+                                        ?.toString(2)
+                                        .orEmpty()
+                                        .ifBlank {
+                                            "No localized findings reported. This does not establish authenticity."
+                                        }
+                                )
+                            }
+
+                            item {
+                                AnalysisTextSection(
+                                    title = "Detector Scores",
+                                    subtitle = "Uncalibrated screening indicators",
+                                    value = details
+                                        .optJSONObject("risk_details")
+                                        ?.optJSONObject("component_scores")
+                                        ?.toString(2)
+                                        .orEmpty()
+                                        .ifBlank { "No component scores available." }
+                                )
+                            }
+
+                            selectedResult?.let { row ->
+                                if (row.finalDecision == null) {
+                                    item {
+                                        val onlyReferral =
+                                            row.riskLevel == "HIGH" ||
+                                                    row.analysisStatus == "INCOMPLETE" ||
+                                                    row.algorithmVersion != CURRENT_ANALYSIS_VERSION ||
+                                                    details.optString("verificationStatus") != "REFERENCE_COMPARED"
+
+                                        ManualReviewCard(
+                                            notes = notes,
+                                            checked = checked,
+                                            busy = busy,
+                                            onNotesChange = { value ->
+                                                if (value.length <= 1000) {
+                                                    notes = value
+                                                }
+                                            },
+                                            onCheckedChange = { value ->
+                                                checked = value
+                                            },
+                                            decisions = if (onlyReferral) {
+                                                listOf("REFERRED_FOR_INVESTIGATION")
+                                            } else {
+                                                listOf(
+                                                    "APPROVED",
+                                                    "REJECTED",
+                                                    "REFERRED_FOR_INVESTIGATION"
+                                                )
+                                            },
+                                            onDecision = { decision ->
+                                                runAction {
+                                                    selectedResult = requireAnalysisResponse(
+                                                        RetrofitClient.apiService.reviewAnalysis(
+                                                            requireNotNull(row.alterationResultId),
+                                                            AnalysisReviewRequest(
+                                                                decision,
+                                                                notes
+                                                            )
+                                                        )
+                                                    )
+                                                    refresh()
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun AnalysisLocationCard(
+    location: String,
+    busy: Boolean,
+    onRefresh: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(19.dp))
+            .background(Color.White.copy(alpha = 0.94f))
+            .padding(14.dp)
+    ) {
+        Column {
+            Text(
+                text = "Workspace",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF9A849E),
+                letterSpacing = 0.6.sp
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = location.ifBlank { "Alteration Analysis" },
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF262237)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            AnalysisMiniAction(
+                text = "REFRESH",
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onRefresh
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun AnalysisMiniAction(
+    text: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(13.dp))
+            .background(
+                if (enabled) {
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF6B50B8),
+                            Color(0xFFD34D92)
+                        )
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFFE6E0E9),
+                            Color(0xFFE6E0E9)
+                        )
+                    )
+                }
+            )
+            .clickable(enabled = enabled) {
+                onClick()
+            }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) Color.White else Color(0xFF9A939F)
+        )
+    }
+}
+
+
+@Composable
+private fun AnalysisSectionHeading(
+    title: String,
+    subtitle: String
+) {
+    Column {
+        Text(
+            text = title,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1B1D30)
+        )
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        Text(
+            text = subtitle,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            color = Color(0xFF817A8B)
+        )
+    }
+}
+
+
+@Composable
+private fun AnalysisNavigationCard(
+    eyebrow: String,
+    title: String,
+    subtitle: String,
+    meta: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(21.dp))
+            .background(Color.White.copy(alpha = 0.96f))
+            .clickable(enabled = enabled) {
+                onClick()
+            }
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFFFF8149),
+                                Color(0xFFF04F8A)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = eyebrow
+                        .take(3)
+                        .uppercase(),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp
                 )
             }
 
+            Spacer(modifier = Modifier.width(13.dp))
 
-            item {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF171A2C),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
 
-                Spacer(
-                    modifier =
-                        Modifier.height(
-                            24.dp
-                        )
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = subtitle,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    color = Color(0xFF8D8695),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = meta,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF6F4BB8),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = "OPEN",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (enabled) {
+                    Color(0xFFD34D92)
+                } else {
+                    Color(0xFFA9A2AD)
+                }
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun AnalysisDetailCard(
+    title: String,
+    rows: List<Pair<String, String>>
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(21.dp))
+            .background(Color.White.copy(alpha = 0.96f))
+            .padding(16.dp)
+    ) {
+        Column {
+            Text(
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF171A2C)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            rows.forEach { (label, value) ->
+                AnalysisInfoRow(
+                    label = label,
+                    value = value.ifBlank { "-" }
                 )
             }
         }
     }
+}
+
+
+@Composable
+private fun AnalysisReferenceSelector(
+    typeCode: String?,
+    candidates: List<Document>,
+    selectedId: Long?,
+    busy: Boolean,
+    onSelect: (Long?) -> Unit
+) {
+    var expanded by remember(typeCode, candidates.size) {
+        mutableStateOf(false)
+    }
+
+    val disabledForType =
+        typeCode in setOf("SALARY_SLIP", "UTILITY_BILL")
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(21.dp))
+            .background(Color.White.copy(alpha = 0.96f))
+            .padding(16.dp)
+    ) {
+        Column {
+            Text(
+                text = "Trusted Same-Document Reference",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF171A2C)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Only an earlier secure live capture for the same client and document type, with an approved reviewed result, can be used.",
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                color = Color(0xFF817A8B)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            when {
+                disabledForType -> {
+                    AnalysisInfoNotice(
+                        text = "Trusted-reference comparison is not available for this document type. Component 4 will run single-image screening only."
+                    )
+                }
+
+                candidates.isEmpty() -> {
+                    AnalysisInfoNotice(
+                        text = "No eligible earlier approved reference is available. You can still run screening, but approval or rejection requires a trusted same-document comparison."
+                    )
+                }
+
+                else -> {
+                    Box {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFFF1ECFA))
+                                .clickable(enabled = !busy) {
+                                    expanded = true
+                                }
+                                .padding(
+                                    horizontal = 14.dp,
+                                    vertical = 12.dp
+                                )
+                        ) {
+                            Text(
+                                text = selectedId?.let {
+                                    "Reference: approved document #$it"
+                                } ?: "No reference selected",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF6F4BB8)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = {
+                                expanded = false
+                            }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text("No reference")
+                                },
+                                onClick = {
+                                    onSelect(null)
+                                    expanded = false
+                                }
+                            )
+
+                            candidates.forEach { document ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            "Approved document #${document.documentId ?: "-"}"
+                                        )
+                                    },
+                                    onClick = {
+                                        onSelect(document.documentId)
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun AnalysisPrimaryAction(
+    text: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (enabled) {
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF6950B7),
+                            Color(0xFF9E4FC4),
+                            Color(0xFFD34D92)
+                        )
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFFE4DEE9),
+                            Color(0xFFE4DEE9)
+                        )
+                    )
+                }
+            )
+            .clickable(enabled = enabled) {
+                onClick()
+            }
+            .padding(
+                horizontal = 14.dp,
+                vertical = 14.dp
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) {
+                Color.White
+            } else {
+                Color(0xFF9B949F)
+            }
+        )
+    }
+}
+
+
+@Composable
+private fun AnalysisCustomerComparisonCard(
+    customer: Customer?,
+    details: JSONObject
+) {
+    val check = details.optJSONObject("customerCrossCheck")
+    val fields = check?.optJSONObject("fields")
+    val nic = fields?.optJSONObject("nic")
+    val name = fields?.optJSONObject("fullName")
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(21.dp))
+            .background(Color.White.copy(alpha = 0.96f))
+            .padding(16.dp)
+    ) {
+        Column {
+            Text(
+                text = "Registered Information vs OCR",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF171A2C)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Registered values come from the server database. OCR differences are review signals, not proof of identity fraud.",
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                color = Color(0xFF817A8B)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            AnalysisInfoRow(
+                label = "Cross-check",
+                value = check?.optString("status")
+                    ?.ifBlank { "Not assessed" }
+                    ?: "Not assessed"
+            )
+
+            AnalysisInfoRow(
+                label = "Registered NIC",
+                value = customer?.nic ?: "Not registered"
+            )
+
+            AnalysisInfoRow(
+                label = "NIC OCR",
+                value = analysisComparisonText(nic)
+            )
+
+            AnalysisInfoRow(
+                label = "Registered Name",
+                value = customer?.fullName ?: "Not registered"
+            )
+
+            AnalysisInfoRow(
+                label = "Name OCR",
+                value = analysisComparisonText(name)
+            )
+
+            if (check == null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                AnalysisInfoNotice(
+                    text = "This report has no registered-customer cross-check. Run a new Component 4 v6 analysis."
+                )
+            }
+        }
+    }
+}
+
+
+private fun analysisComparisonText(
+    field: JSONObject?
+): String {
+    if (field == null) {
+        return "Not assessed"
+    }
+
+    val candidates = field.optJSONArray("extractedCandidates")
+
+    val extracted = if (
+        candidates == null || candidates.length() == 0
+    ) {
+        "Not extracted"
+    } else {
+        (0 until candidates.length()).joinToString("; ") {
+            candidates.optString(it)
+        }
+    }
+
+    val status = field
+        .optString("status", "NOT_CHECKED")
+        .ifBlank { "NOT_CHECKED" }
+
+    return "$extracted — $status"
 }
 
 
@@ -1865,7 +2137,7 @@ private fun AnalysisResultCard(
 
             if (
                 row.algorithmVersion !=
-                "document-analysis-4"
+                CURRENT_ANALYSIS_VERSION
             ) {
 
                 Spacer(
@@ -1878,7 +2150,7 @@ private fun AnalysisResultCard(
 
                 AnalysisInfoNotice(
                     text =
-                        "Earlier analysis detected. Rerun with the corrected pipeline before making a decision."
+                        "Earlier analysis detected. Rerun with Component 4 v6 before making a new decision."
                 )
             }
         }
@@ -2859,22 +3131,22 @@ private fun <T> requireAnalysisResponse(
 
 private fun decodeAnalysisImage(
     encoded: String
-): Bitmap {
-
-    val bytes =
+): Bitmap =
+    decodeAnalysisImage(
         Base64.decode(
             encoded,
             Base64.DEFAULT
         )
+    )
 
 
-    val options =
-        BitmapFactory.Options()
-            .apply {
-                inJustDecodeBounds =
-                    true
-            }
+private fun decodeAnalysisImage(
+    bytes: ByteArray
+): Bitmap {
 
+    val options = BitmapFactory.Options().apply {
+        inJustDecodeBounds = true
+    }
 
     BitmapFactory.decodeByteArray(
         bytes,
@@ -2883,18 +3155,13 @@ private fun decodeAnalysisImage(
         options
     )
 
-
     require(
-        options.outWidth >
-                0 &&
-                options.outHeight >
-                0 &&
-                options.outWidth
-                    .toLong() *
-                options.outHeight <=
-                12_000_000L
-    )
-
+        options.outWidth > 0 &&
+                options.outHeight > 0 &&
+                options.outWidth.toLong() * options.outHeight <= 12_000_000L
+    ) {
+        "Invalid document image"
+    }
 
     return requireNotNull(
         BitmapFactory.decodeByteArray(
@@ -2902,7 +3169,9 @@ private fun decodeAnalysisImage(
             0,
             bytes.size
         )
-    )
+    ) {
+        "Unable to read document image"
+    }
 }
 
 

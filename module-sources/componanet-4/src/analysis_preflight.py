@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image, ImageOps
 from src.document_profiles import PROFILES
 
-VERSION = "document-analysis-4"
+VERSION = "document-analysis-6"
 
 
 def check_document_text(ocr, kind):

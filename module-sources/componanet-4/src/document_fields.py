@@ -16,7 +16,7 @@ def enrich_ocr(ocr, kind):
         fields["dates"] = dates
     policy = PROFILES.get(kind, {}).get("fieldPolicy", "UNCONFIGURED")
     fields["documentFieldPolicy"] = policy
-    if policy == "FINANCIAL":
+    if policy == "FINANCIAL" or kind in ("SALARY_SLIP", "UTILITY_BILL"):
         fields["accountNumberCandidates"] = candidates(r"(?:A\s*/\s*C\s*No\.?|Account\s*(?:No\.?|Number))\s*[:：]?\s*([0-9][0-9 -]{5,35})")
         fields["amountCandidates"] = candidates(r"(?<![A-Za-z0-9])([0-9]{1,3}(?:,[0-9]{3})+\.[0-9]{2}|[0-9]+\.[0-9]{2})(?![A-Za-z0-9])")
         fields["financialNote"] = "Unassigned amount candidates; debit/credit/balance positions and arithmetic need manual checking."
