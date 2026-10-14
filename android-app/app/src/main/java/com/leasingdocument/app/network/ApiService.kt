@@ -15,7 +15,7 @@ import retrofit2.http.Path
 interface ApiService {
 
     // =========================================================
-    // CUSTOMER REGISTRATION - Step 5 workflow
+    // CUSTOMER REGISTRATION
     // =========================================================
 
     @POST("api/customers/register")
@@ -45,6 +45,11 @@ interface ApiService {
 
     @GET("api/agents")
     suspend fun getAgents(): Response<List<Agent>>
+
+    @POST("api/agents")
+    suspend fun createAgent(
+        @Body request: AddAgentRequest
+    ): Response<Agent>
 
     @POST("api/agents/{id}/disable")
     suspend fun disableAgent(
@@ -143,7 +148,6 @@ interface ApiService {
 
     // =========================================================
     // LEGACY FILE UPLOAD
-    // Kept for compatibility; final camera workflow uses /captured.
     // =========================================================
 
     @Multipart
@@ -158,8 +162,6 @@ interface ApiService {
 
     // =========================================================
     // DOCUMENT FILE
-    // Secure captures are decrypted and integrity-verified by Spring
-    // before bytes are returned to the authenticated caller.
     // =========================================================
 
     @GET("api/documents/image/{fileName}")

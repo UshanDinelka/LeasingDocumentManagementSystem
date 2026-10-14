@@ -1,16 +1,19 @@
 package com.leasingdocument.app.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -19,8 +22,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,13 +45,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.leasingdocument.app.network.AddAgentRequest
 import com.leasingdocument.app.network.Agent
 import com.leasingdocument.app.network.RetrofitClient
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
+private enum class ManageAgentsPage {
+    LIST,
+    ADD
+}
 
 @Composable
 fun ManageAgentsScreen() {
@@ -81,6 +95,18 @@ fun ManageAgentsScreen() {
 
     var actionInProgress by remember {
         mutableStateOf(false)
+    }
+
+    var page by remember {
+        mutableStateOf(ManageAgentsPage.LIST)
+    }
+
+    var createInProgress by remember {
+        mutableStateOf(false)
+    }
+
+    var createError by remember {
+        mutableStateOf("")
     }
 
     val scope =
@@ -144,8 +170,18 @@ fun ManageAgentsScreen() {
         }
 
 
+    BackHandler(
+        enabled =
+            page == ManageAgentsPage.ADD &&
+                    !createInProgress
+    ) {
+        page = ManageAgentsPage.LIST
+        createError = ""
+    }
+
+
     // =========================================================
-    // CONFIRMATION DIALOG
+    // DISABLE / REACTIVATE CONFIRMATION
     // =========================================================
 
     val agentForDialog =
@@ -245,20 +281,14 @@ fun ManageAgentsScreen() {
                                 } else {
 
                                     actionMessage =
-                                        when (response.code()) {
-
-                                            401 ->
-                                                "Your session is no longer valid."
-
-                                            403 ->
-                                                "Only an administrator can change agent status."
-
-                                            404 ->
-                                                "Agent not found."
-
-                                            else ->
+                                        responseErrorMessage(
+                                            response.code(),
+                                            response.errorBody()
+                                                ?.use { it.string() }
+                                                .orEmpty(),
+                                            fallback =
                                                 "Could not update agent status (${response.code()})."
-                                        }
+                                        )
                                 }
 
                             } catch (e: Exception) {
@@ -352,152 +382,509 @@ fun ManageAgentsScreen() {
             )
     ) {
 
+        ManageAgentsBackground()
 
-        // =====================================================
-        // BACKGROUND DECORATION
-        // =====================================================
 
-        Canvas(
+        when (page) {
+
+            ManageAgentsPage.LIST -> {
+
+                ManageAgentsListPage(
+                    agents =
+                        agents,
+
+                    activeCount =
+                        activeCount,
+
+                    disabledCount =
+                        disabledCount,
+
+                    isLoading =
+                        isLoading,
+
+                    errorMessage =
+                        errorMessage,
+
+                    actionMessage =
+                        actionMessage,
+
+                    actionInProgress =
+                        actionInProgress,
+
+                    onAddAgent = {
+                        createError = ""
+                        actionMessage = ""
+                        page = ManageAgentsPage.ADD
+                    },
+
+                    onDisable = { agent ->
+                        selectedAgent = agent
+                        selectedAction = "DISABLE"
+                    },
+
+                    onReactivate = { agent ->
+                        selectedAgent = agent
+                        selectedAction = "REACTIVATE"
+                    }
+                )
+            }
+
+
+            ManageAgentsPage.ADD -> {
+
+                AddAgentPage(
+                    busy =
+                        createInProgress,
+
+                    serverError =
+                        createError,
+
+                    onCreate = { request ->
+
+                        if (!createInProgress) {
+
+                            createInProgress = true
+                            createError = ""
+
+                            scope.launch {
+
+                                try {
+
+                                    val response =
+                                        RetrofitClient
+                                            .apiService
+                                            .createAgent(request)
+
+                                    if (response.isSuccessful) {
+
+                                        actionMessage =
+                                            "Agent created successfully. The account is ACTIVE and ready for login."
+
+                                        createError = ""
+                                        page = ManageAgentsPage.LIST
+                                        refreshKey++
+
+                                    } else {
+
+                                        createError =
+                                            responseErrorMessage(
+                                                response.code(),
+                                                response.errorBody()
+                                                    ?.use { it.string() }
+                                                    .orEmpty(),
+                                                fallback =
+                                                    "Could not create the agent (${response.code()})."
+                                            )
+                                    }
+
+                                } catch (e: Exception) {
+
+                                    createError =
+                                        "Cannot connect to server."
+
+                                } finally {
+
+                                    createInProgress = false
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+
+// =====================================================================
+// LIST PAGE
+// =====================================================================
+
+@Composable
+private fun ManageAgentsListPage(
+    agents: List<Agent>,
+    activeCount: Int,
+    disabledCount: Int,
+    isLoading: Boolean,
+    errorMessage: String,
+    actionMessage: String,
+    actionInProgress: Boolean,
+    onAddAgent: () -> Unit,
+    onDisable: (Agent) -> Unit,
+    onReactivate: (Agent) -> Unit
+) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(
+                horizontal =
+                    22.dp
+            )
+    ) {
+
+        Spacer(
             modifier =
-                Modifier.fillMaxSize()
-        ) {
-
-            val w =
-                size.width
-
-            val h =
-                size.height
+                Modifier.height(18.dp)
+        )
 
 
-            val topShape =
-                Path().apply {
+        Text(
+            text =
+                "Manage Agents",
 
-                    moveTo(0f, 0f)
-                    lineTo(w * 0.72f, 0f)
+            fontSize =
+                27.sp,
 
-                    cubicTo(
-                        w * 0.58f,
-                        h * 0.028f,
+            fontWeight =
+                FontWeight.Bold,
 
-                        w * 0.40f,
-                        h * 0.060f,
-
-                        0f,
-                        h * 0.16f
-                    )
-
-                    close()
-                }
+            color =
+                Color(0xFF171A2C)
+        )
 
 
-            drawPath(
-                path =
-                    topShape,
+        Spacer(
+            modifier =
+                Modifier.height(4.dp)
+        )
 
-                brush =
-                    Brush.linearGradient(
-                        colors =
-                            listOf(
-                                Color(0xFFFFD1AF)
-                                    .copy(alpha = 0.58f),
 
-                                Color(0xFFFFE8DE)
-                                    .copy(alpha = 0.24f),
+        Text(
+            text =
+                "View registered leasing agents and manage account access.",
 
-                                Color.Transparent
-                            )
-                    )
+            fontSize =
+                12.sp,
+
+            color =
+                Color(0xFF817A8B)
+        )
+
+
+        Spacer(
+            modifier =
+                Modifier.height(22.dp)
+        )
+
+
+        AgentOverviewCard(
+            registeredCount =
+                agents.size,
+
+            activeCount =
+                activeCount,
+
+            disabledCount =
+                disabledCount
+        )
+
+
+        Spacer(
+            modifier =
+                Modifier.height(12.dp)
+        )
+
+
+        GradientActionButton(
+            text =
+                "+ ADD NEW AGENT",
+
+            enabled =
+                !actionInProgress,
+
+            onClick =
+                onAddAgent
+        )
+
+
+        if (actionMessage.isNotBlank()) {
+
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp)
             )
 
 
-            val ribbon =
-                Path().apply {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(16.dp)
+                        )
+                        .background(
+                            Color(0xFFF3EEF9)
+                        )
+                        .padding(13.dp)
+            ) {
 
-                    moveTo(
-                        0f,
-                        h * 0.075f
-                    )
+                Text(
+                    text =
+                        actionMessage,
 
-                    cubicTo(
-                        w * 0.19f,
-                        h * 0.052f,
+                    fontSize =
+                        12.sp,
 
-                        w * 0.35f,
-                        h * 0.080f,
+                    lineHeight =
+                        17.sp,
 
-                        w * 0.58f,
-                        h * 0.022f
-                    )
-                }
-
-
-            drawPath(
-                path =
-                    ribbon,
-
-                color =
-                    Color(0xFFFF8B42)
-                        .copy(alpha = 0.70f),
-
-                style =
-                    Stroke(
-                        width =
-                            1.1.dp.toPx()
-                    )
-            )
-
-
-            drawCircle(
-                brush =
-                    Brush.radialGradient(
-                        colors =
-                            listOf(
-                                Color(0xFF9F47DD)
-                                    .copy(alpha = 0.08f),
-
-                                Color.Transparent
-                            )
-                    ),
-
-                radius =
-                    w * 0.75f,
-
-                center =
-                    Offset(
-                        x =
-                            w * 0.55f,
-
-                        y =
-                            h
-                    )
-            )
+                    color =
+                        Color(0xFF6F4BB8)
+                )
+            }
         }
 
 
-        // =====================================================
-        // CONTENT
-        // =====================================================
+        Spacer(
+            modifier =
+                Modifier.height(20.dp)
+        )
 
-        Column(
-            modifier = Modifier
+
+        Text(
+            text =
+                "Agent Accounts",
+
+            fontSize =
+                18.sp,
+
+            fontWeight =
+                FontWeight.Bold,
+
+            color =
+                Color(0xFF1B1D30)
+        )
+
+
+        Spacer(
+            modifier =
+                Modifier.height(12.dp)
+        )
+
+
+        when {
+
+            isLoading -> {
+
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+
+                    contentAlignment =
+                        Alignment.Center
+                ) {
+
+                    Column(
+                        horizontalAlignment =
+                            Alignment.CenterHorizontally
+                    ) {
+
+                        CircularProgressIndicator(
+                            modifier =
+                                Modifier.size(30.dp),
+
+                            strokeWidth =
+                                3.dp,
+
+                            color =
+                                Color(0xFF7650BD)
+                        )
+
+
+                        Spacer(
+                            modifier =
+                                Modifier.height(12.dp)
+                        )
+
+
+                        Text(
+                            text =
+                                "Loading agents...",
+
+                            fontSize =
+                                12.sp,
+
+                            color =
+                                Color(0xFF817A8B)
+                        )
+                    }
+                }
+            }
+
+
+            errorMessage.isNotBlank() -> {
+
+                StatusCard(
+                    title =
+                        "Unable to load agents",
+
+                    message =
+                        errorMessage,
+
+                    background =
+                        Color(0xFFFFEEF1),
+
+                    titleColor =
+                        Color(0xFFA13A4B)
+                )
+            }
+
+
+            agents.isEmpty() -> {
+
+                StatusCard(
+                    title =
+                        "No agents found",
+
+                    message =
+                        "Create the first leasing-agent account using the button above.",
+
+                    background =
+                        Color.White,
+
+                    titleColor =
+                        Color(0xFF171A2C)
+                )
+            }
+
+
+            else -> {
+
+                LazyColumn(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+
+                    contentPadding =
+                        PaddingValues(
+                            bottom =
+                                20.dp
+                        )
+                ) {
+
+                    items(
+                        items =
+                            agents,
+
+                        key = {
+                            it.agentId
+                                ?: it.hashCode()
+                        }
+                    ) { agent ->
+
+                        AgentCard(
+                            agent =
+                                agent,
+
+                            actionsEnabled =
+                                !actionInProgress,
+
+                            onDisable = {
+                                onDisable(agent)
+                            },
+
+                            onReactivate = {
+                                onReactivate(agent)
+                            }
+                        )
+
+
+                        Spacer(
+                            modifier =
+                                Modifier.height(12.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// =====================================================================
+// ADD AGENT PAGE
+// =====================================================================
+
+@Composable
+private fun AddAgentPage(
+    busy: Boolean,
+    serverError: String,
+    onCreate: (AddAgentRequest) -> Unit
+) {
+
+    var fullName by remember {
+        mutableStateOf("")
+    }
+
+    var email by remember {
+        mutableStateOf("")
+    }
+
+    var nic by remember {
+        mutableStateOf("")
+    }
+
+    var phone by remember {
+        mutableStateOf("")
+    }
+
+    var password by remember {
+        mutableStateOf("")
+    }
+
+    var confirmPassword by remember {
+        mutableStateOf("")
+    }
+
+    var localError by remember {
+        mutableStateOf("")
+    }
+
+
+    val displayError =
+        localError.ifBlank {
+            serverError
+        }
+
+
+    LazyColumn(
+        modifier =
+            Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(
                     horizontal =
                         22.dp
-                )
-        ) {
+                ),
 
+        contentPadding =
+            PaddingValues(
+                bottom =
+                    34.dp
+            ),
+
+        verticalArrangement =
+            Arrangement.spacedBy(
+                12.dp
+            )
+    ) {
+
+        item {
 
             Spacer(
                 modifier =
                     Modifier.height(18.dp)
             )
 
-
             Text(
                 text =
-                    "Manage Agents",
+                    "Create Agent",
 
                 fontSize =
                     27.sp,
@@ -508,330 +895,981 @@ fun ManageAgentsScreen() {
                 color =
                     Color(0xFF171A2C)
             )
+        }
 
 
-            Spacer(
-                modifier =
-                    Modifier.height(4.dp)
-            )
-
-
-            Text(
-                text =
-                    "View registered leasing agents and manage account access.",
-
-                fontSize =
-                    12.sp,
-
-                color =
-                    Color(0xFF817A8B)
-            )
-
-
-            Spacer(
-                modifier =
-                    Modifier.height(22.dp)
-            )
-
-
-            // =================================================
-            // OVERVIEW
-            // =================================================
+        item {
 
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(
-                        RoundedCornerShape(24.dp)
-                    )
-                    .background(
-                        Brush.horizontalGradient(
-                            colors =
-                                listOf(
-                                    Color(0xFF6250B5),
-                                    Color(0xFF934FC2),
-                                    Color(0xFFD14D92)
-                                )
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(24.dp)
                         )
-                    )
-                    .padding(20.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors =
+                                    listOf(
+                                        Color(0xFF6250B5),
+                                        Color(0xFF934FC2),
+                                        Color(0xFFD14D92)
+                                    )
+                            )
+                        )
+                        .padding(19.dp)
             ) {
 
-                Column {
-
-                    Text(
-                        text =
-                            "Agent Overview",
-
-                        color =
-                            Color.White.copy(alpha = 0.84f),
-
-                        fontSize =
-                            12.sp
-                    )
-
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(5.dp)
-                    )
-
-
-                    Text(
-                        text =
-                            "${agents.size} Registered Agent${if (agents.size == 1) "" else "s"}",
-
-                        color =
-                            Color.White,
-
-                        fontSize =
-                            22.sp,
-
-                        fontWeight =
-                            FontWeight.Bold
-                    )
-
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(14.dp)
-                    )
-
-
-                    Row(
-                        horizontalArrangement =
-                            Arrangement.spacedBy(10.dp)
-                    ) {
-
-                        OverviewPill(
-                            label =
-                                "ACTIVE",
-
-                            value =
-                                activeCount.toString()
-                        )
-
-
-                        OverviewPill(
-                            label =
-                                "DISABLED",
-
-                            value =
-                                disabledCount.toString()
-                        )
-                    }
-                }
-            }
-
-
-            if (actionMessage.isNotBlank()) {
-
-                Spacer(
+                Row(
                     modifier =
-                        Modifier.height(12.dp)
-                )
+                        Modifier.fillMaxWidth(),
 
-
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(
-                                RoundedCornerShape(16.dp)
-                            )
-                            .background(
-                                Color(0xFFF3EEF9)
-                            )
-                            .padding(13.dp)
+                    verticalAlignment =
+                        Alignment.CenterVertically
                 ) {
-
-                    Text(
-                        text =
-                            actionMessage,
-
-                        fontSize =
-                            12.sp,
-
-                        color =
-                            Color(0xFF6F4BB8)
-                    )
-                }
-            }
-
-
-            Spacer(
-                modifier =
-                    Modifier.height(20.dp)
-            )
-
-
-            Text(
-                text =
-                    "Agent Accounts",
-
-                fontSize =
-                    18.sp,
-
-                fontWeight =
-                    FontWeight.Bold,
-
-                color =
-                    Color(0xFF1B1D30)
-            )
-
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp)
-            )
-
-
-            // =================================================
-            // STATES
-            // =================================================
-
-            when {
-
-                isLoading -> {
 
                     Box(
                         modifier =
                             Modifier
-                                .fillMaxWidth()
-                                .height(180.dp),
+                                .size(56.dp)
+                                .clip(
+                                    CircleShape
+                                )
+                                .background(
+                                    Color.White.copy(
+                                        alpha =
+                                            0.16f
+                                    )
+                                ),
 
                         contentAlignment =
                             Alignment.Center
                     ) {
 
-                        Column(
-                            horizontalAlignment =
-                                Alignment.CenterHorizontally
-                        ) {
+                        Text(
+                            text =
+                                initialsFromName(
+                                    fullName.ifBlank {
+                                        "New Agent"
+                                    }
+                                ),
 
-                            CircularProgressIndicator(
-                                modifier =
-                                    Modifier.size(30.dp),
+                            color =
+                                Color.White,
 
-                                strokeWidth =
-                                    3.dp,
+                            fontSize =
+                                16.sp,
 
-                                color =
-                                    Color(0xFF7650BD)
-                            )
+                            fontWeight =
+                                FontWeight.Bold
+                        )
+                    }
 
+
+                    Spacer(
+                        modifier =
+                            Modifier.width(14.dp)
+                    )
+
+
+                    Column(
+                        modifier =
+                            Modifier.weight(1f)
+                    ) {
+
+                        Text(
+                            text =
+                                fullName.ifBlank {
+                                    "New Agent Account"
+                                },
+
+                            color =
+                                Color.White,
+
+                            fontSize =
+                                17.sp,
+
+                            fontWeight =
+                                FontWeight.Bold,
+
+                            maxLines =
+                                1,
+
+                            overflow =
+                                TextOverflow.Ellipsis
+                        )
+
+
+                        if (email.isNotBlank()) {
 
                             Spacer(
                                 modifier =
-                                    Modifier.height(12.dp)
+                                    Modifier.height(4.dp)
                             )
-
 
                             Text(
                                 text =
-                                    "Loading agents...",
-
-                                fontSize =
-                                    12.sp,
+                                    email,
 
                                 color =
-                                    Color(0xFF817A8B)
-                            )
-                        }
-                    }
-                }
+                                    Color.White.copy(
+                                        alpha =
+                                            0.82f
+                                    ),
 
+                                fontSize =
+                                    10.sp,
 
-                errorMessage.isNotBlank() -> {
+                                maxLines =
+                                    1,
 
-                    StatusCard(
-                        title =
-                            "Unable to load agents",
-
-                        message =
-                            errorMessage,
-
-                        background =
-                            Color(0xFFFFEEF1),
-
-                        titleColor =
-                            Color(0xFFA13A4B)
-                    )
-                }
-
-
-                agents.isEmpty() -> {
-
-                    StatusCard(
-                        title =
-                            "No agents found",
-
-                        message =
-                            "Registered leasing agents will appear here.",
-
-                        background =
-                            Color.White,
-
-                        titleColor =
-                            Color(0xFF171A2C)
-                    )
-                }
-
-
-                else -> {
-
-                    LazyColumn(
-                        modifier =
-                            Modifier.fillMaxSize()
-                    ) {
-
-                        items(
-                            items =
-                                agents,
-
-                            key = {
-                                it.agentId
-                                    ?: it.hashCode()
-                            }
-                        ) { agent ->
-
-                            AgentCard(
-                                agent =
-                                    agent,
-
-                                actionsEnabled =
-                                    !actionInProgress,
-
-                                onDisable = {
-                                    selectedAgent = agent
-                                    selectedAction = "DISABLE"
-                                },
-
-                                onReactivate = {
-                                    selectedAgent = agent
-                                    selectedAction = "REACTIVATE"
-                                }
-                            )
-
-
-                            Spacer(
-                                modifier =
-                                    Modifier.height(12.dp)
-                            )
-                        }
-
-
-                        item {
-
-                            Spacer(
-                                modifier =
-                                    Modifier.height(20.dp)
+                                overflow =
+                                    TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
             }
         }
+
+
+        item {
+
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(22.dp)
+                        )
+                        .background(
+                            Color.White.copy(
+                                alpha =
+                                    0.97f
+                            )
+                        )
+                        .padding(17.dp)
+            ) {
+
+                Column {
+
+                    Text(
+                        text =
+                            "Agent Information",
+
+                        fontSize =
+                            16.sp,
+
+                        fontWeight =
+                            FontWeight.Bold,
+
+                        color =
+                            Color(0xFF171A2C)
+                    )
+                    Spacer(
+                        modifier =
+                            Modifier.height(14.dp)
+                    )
+
+
+                    OutlinedTextField(
+                        value =
+                            fullName,
+
+                        onValueChange = {
+                            if (it.length <= 120) {
+                                fullName = it
+                                localError = ""
+                            }
+                        },
+
+                        label = {
+                            Text(
+                                "Full name"
+                            )
+                        },
+
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
+                        enabled =
+                            !busy,
+
+                        singleLine =
+                            true,
+
+                        keyboardOptions =
+                            KeyboardOptions(
+                                imeAction =
+                                    ImeAction.Next
+                            )
+                    )
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(10.dp)
+                    )
+
+
+                    OutlinedTextField(
+                        value =
+                            email,
+
+                        onValueChange = {
+                            if (it.length <= 190) {
+                                email = it
+                                localError = ""
+                            }
+                        },
+
+                        label = {
+                            Text(
+                                "Email address"
+                            )
+                        },
+
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
+                        enabled =
+                            !busy,
+
+                        singleLine =
+                            true,
+
+                        keyboardOptions =
+                            KeyboardOptions(
+                                keyboardType =
+                                    KeyboardType.Email,
+
+                                imeAction =
+                                    ImeAction.Next
+                            )
+                    )
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(10.dp)
+                    )
+
+
+                    OutlinedTextField(
+                        value =
+                            nic,
+
+                        onValueChange = {
+                            if (it.length <= 30) {
+                                nic = it
+                                localError = ""
+                            }
+                        },
+
+                        label = {
+                            Text(
+                                "NIC"
+                            )
+                        },
+
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
+                        enabled =
+                            !busy,
+
+                        singleLine =
+                            true,
+
+                        keyboardOptions =
+                            KeyboardOptions(
+                                imeAction =
+                                    ImeAction.Next
+                            )
+                    )
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(10.dp)
+                    )
+
+
+                    OutlinedTextField(
+                        value =
+                            phone,
+
+                        onValueChange = {
+                            if (it.length <= 30) {
+                                phone = it
+                                localError = ""
+                            }
+                        },
+
+                        label = {
+                            Text(
+                                "Phone number"
+                            )
+                        },
+
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
+                        enabled =
+                            !busy,
+
+                        singleLine =
+                            true,
+
+                        keyboardOptions =
+                            KeyboardOptions(
+                                keyboardType =
+                                    KeyboardType.Phone,
+
+                                imeAction =
+                                    ImeAction.Next
+                            )
+                    )
+                }
+            }
+        }
+
+
+        item {
+
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(22.dp)
+                        )
+                        .background(
+                            Color.White.copy(
+                                alpha =
+                                    0.97f
+                            )
+                        )
+                        .padding(17.dp)
+            ) {
+
+                Column {
+
+                    Text(
+                        text =
+                            "Secure Login",
+
+                        fontSize =
+                            16.sp,
+
+                        fontWeight =
+                            FontWeight.Bold,
+
+                        color =
+                            Color(0xFF171A2C)
+                    )
+                    Spacer(
+                        modifier =
+                            Modifier.height(14.dp)
+                    )
+
+
+                    OutlinedTextField(
+                        value =
+                            password,
+
+                        onValueChange = {
+                            if (it.length <= 128) {
+                                password = it
+                                localError = ""
+                            }
+                        },
+
+                        label = {
+                            Text(
+                                "Temporary password"
+                            )
+                        },
+
+                        supportingText = {
+                            Text(
+                                "Minimum 8 characters"
+                            )
+                        },
+
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
+                        enabled =
+                            !busy,
+
+                        singleLine =
+                            true,
+
+                        visualTransformation =
+                            PasswordVisualTransformation(),
+
+                        keyboardOptions =
+                            KeyboardOptions(
+                                keyboardType =
+                                    KeyboardType.Password,
+
+                                imeAction =
+                                    ImeAction.Next
+                            )
+                    )
+
+
+                    Spacer(
+                        modifier =
+                            Modifier.height(8.dp)
+                    )
+
+
+                    OutlinedTextField(
+                        value =
+                            confirmPassword,
+
+                        onValueChange = {
+                            if (it.length <= 128) {
+                                confirmPassword = it
+                                localError = ""
+                            }
+                        },
+
+                        label = {
+                            Text(
+                                "Confirm password"
+                            )
+                        },
+
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
+                        enabled =
+                            !busy,
+
+                        singleLine =
+                            true,
+
+                        visualTransformation =
+                            PasswordVisualTransformation(),
+
+                        keyboardOptions =
+                            KeyboardOptions(
+                                keyboardType =
+                                    KeyboardType.Password,
+
+                                imeAction =
+                                    ImeAction.Done
+                            )
+                    )
+                }
+            }
+        }
+
+
+        if (displayError.isNotBlank()) {
+
+            item {
+
+                StatusCard(
+                    title =
+                        "Could not create agent",
+
+                    message =
+                        displayError,
+
+                    background =
+                        Color(0xFFFFEEF1),
+
+                    titleColor =
+                        Color(0xFFA13A4B)
+                )
+            }
+        }
+
+
+        item {
+
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(16.dp)
+                        )
+                        .background(
+                            if (busy) {
+
+                                Brush.horizontalGradient(
+                                    colors =
+                                        listOf(
+                                            Color(0xFFD8D0DF),
+                                            Color(0xFFD8D0DF)
+                                        )
+                                )
+
+                            } else {
+
+                                Brush.horizontalGradient(
+                                    colors =
+                                        listOf(
+                                            Color(0xFFFF7B4D),
+                                            Color(0xFFF04D8E),
+                                            Color(0xFF8C4DD1)
+                                        )
+                                )
+                            }
+                        )
+                        .clickable(
+                            enabled =
+                                !busy
+                        ) {
+
+                            val cleanName =
+                                fullName.trim()
+
+                            val cleanEmail =
+                                email.trim()
+
+                            val cleanNic =
+                                nic.trim()
+
+                            val cleanPhone =
+                                phone.trim()
+
+
+                            localError =
+                                when {
+
+                                    cleanName.length < 2 ->
+                                        "Enter the agent's full name."
+
+                                    !cleanEmail.matches(
+                                        Regex(
+                                            "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+                                        )
+                                    ) ->
+                                        "Enter a valid email address."
+
+                                    cleanNic.length < 5 ->
+                                        "Enter a valid NIC."
+
+                                    cleanPhone.length < 7 ->
+                                        "Enter a valid phone number."
+
+                                    password.length < 8 ->
+                                        "Password must contain at least 8 characters."
+
+                                    password != confirmPassword ->
+                                        "Passwords do not match."
+
+                                    else ->
+                                        ""
+                                }
+
+
+                            if (localError.isBlank()) {
+
+                                onCreate(
+                                    AddAgentRequest(
+                                        fullName =
+                                            cleanName,
+
+                                        email =
+                                            cleanEmail,
+
+                                        password =
+                                            password,
+
+                                        nic =
+                                            cleanNic,
+
+                                        phone =
+                                            cleanPhone
+                                    )
+                                )
+                            }
+                        }
+                        .padding(
+                            vertical =
+                                15.dp
+                        ),
+
+                contentAlignment =
+                    Alignment.Center
+            ) {
+
+                if (busy) {
+
+                    Row(
+                        verticalAlignment =
+                            Alignment.CenterVertically
+                    ) {
+
+                        CircularProgressIndicator(
+                            modifier =
+                                Modifier.size(18.dp),
+
+                            strokeWidth =
+                                2.dp,
+
+                            color =
+                                Color.White
+                        )
+
+
+                        Spacer(
+                            modifier =
+                                Modifier.width(10.dp)
+                        )
+
+
+                        Text(
+                            text =
+                                "CREATING AGENT...",
+
+                            fontSize =
+                                11.sp,
+
+                            fontWeight =
+                                FontWeight.Bold,
+
+                            color =
+                                Color.White,
+
+                            letterSpacing =
+                                0.5.sp
+                        )
+                    }
+
+                } else {
+
+                    Text(
+                        text =
+                            "CREATE AGENT ACCOUNT",
+
+                        fontSize =
+                            11.sp,
+
+                        fontWeight =
+                            FontWeight.Bold,
+
+                        color =
+                            Color.White,
+
+                        letterSpacing =
+                            0.5.sp
+                    )
+                }
+            }
+        }
+
+
+    }
+}
+
+
+// =====================================================================
+// BACKGROUND
+// =====================================================================
+
+@Composable
+private fun ManageAgentsBackground() {
+
+    Canvas(
+        modifier =
+            Modifier.fillMaxSize()
+    ) {
+
+        val w =
+            size.width
+
+        val h =
+            size.height
+
+
+        val topShape =
+            Path().apply {
+
+                moveTo(0f, 0f)
+                lineTo(w * 0.72f, 0f)
+
+                cubicTo(
+                    w * 0.58f,
+                    h * 0.028f,
+
+                    w * 0.40f,
+                    h * 0.060f,
+
+                    0f,
+                    h * 0.16f
+                )
+
+                close()
+            }
+
+
+        drawPath(
+            path =
+                topShape,
+
+            brush =
+                Brush.linearGradient(
+                    colors =
+                        listOf(
+                            Color(0xFFFFD1AF)
+                                .copy(alpha = 0.58f),
+
+                            Color(0xFFFFE8DE)
+                                .copy(alpha = 0.24f),
+
+                            Color.Transparent
+                        )
+                )
+        )
+
+
+        val ribbon =
+            Path().apply {
+
+                moveTo(
+                    0f,
+                    h * 0.075f
+                )
+
+                cubicTo(
+                    w * 0.19f,
+                    h * 0.052f,
+
+                    w * 0.35f,
+                    h * 0.080f,
+
+                    w * 0.58f,
+                    h * 0.022f
+                )
+            }
+
+
+        drawPath(
+            path =
+                ribbon,
+
+            color =
+                Color(0xFFFF8B42)
+                    .copy(alpha = 0.70f),
+
+            style =
+                Stroke(
+                    width =
+                        1.1.dp.toPx()
+                )
+        )
+
+
+        drawCircle(
+            brush =
+                Brush.radialGradient(
+                    colors =
+                        listOf(
+                            Color(0xFF9F47DD)
+                                .copy(alpha = 0.08f),
+
+                            Color.Transparent
+                        )
+                ),
+
+            radius =
+                w * 0.75f,
+
+            center =
+                Offset(
+                    x =
+                        w * 0.55f,
+
+                    y =
+                        h
+                )
+        )
+    }
+}
+
+
+// =====================================================================
+// OVERVIEW CARD
+// =====================================================================
+
+@Composable
+private fun AgentOverviewCard(
+    registeredCount: Int,
+    activeCount: Int,
+    disabledCount: Int
+) {
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(
+                RoundedCornerShape(24.dp)
+            )
+            .background(
+                Brush.horizontalGradient(
+                    colors =
+                        listOf(
+                            Color(0xFF6250B5),
+                            Color(0xFF934FC2),
+                            Color(0xFFD14D92)
+                        )
+                )
+            )
+            .padding(20.dp)
+    ) {
+
+        Column {
+
+            Text(
+                text =
+                    "Agent Overview",
+
+                color =
+                    Color.White.copy(
+                        alpha =
+                            0.84f
+                    ),
+
+                fontSize =
+                    12.sp
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(5.dp)
+            )
+
+
+            Text(
+                text =
+                    "$registeredCount Registered Agent${if (registeredCount == 1) "" else "s"}",
+
+                color =
+                    Color.White,
+
+                fontSize =
+                    22.sp,
+
+                fontWeight =
+                    FontWeight.Bold
+            )
+
+
+            Spacer(
+                modifier =
+                    Modifier.height(14.dp)
+            )
+
+
+            Row(
+                horizontalArrangement =
+                    Arrangement.spacedBy(10.dp)
+            ) {
+
+                OverviewPill(
+                    label =
+                        "ACTIVE",
+
+                    value =
+                        activeCount.toString()
+                )
+
+
+                OverviewPill(
+                    label =
+                        "DISABLED",
+
+                    value =
+                        disabledCount.toString()
+                )
+            }
+        }
+    }
+}
+
+
+// =====================================================================
+// GRADIENT ACTION BUTTON
+// =====================================================================
+
+@Composable
+private fun GradientActionButton(
+    text: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(
+                    RoundedCornerShape(16.dp)
+                )
+                .background(
+                    if (enabled) {
+
+                        Brush.horizontalGradient(
+                            colors =
+                                listOf(
+                                    Color(0xFFFF7B4D),
+                                    Color(0xFFF04D8E),
+                                    Color(0xFF8C4DD1)
+                                )
+                        )
+
+                    } else {
+
+                        Brush.horizontalGradient(
+                            colors =
+                                listOf(
+                                    Color(0xFFD8D0DF),
+                                    Color(0xFFD8D0DF)
+                                )
+                        )
+                    }
+                )
+                .clickable(
+                    enabled =
+                        enabled,
+
+                    onClick =
+                        onClick
+                )
+                .padding(
+                    vertical =
+                        14.dp
+                ),
+
+        contentAlignment =
+            Alignment.Center
+    ) {
+
+        Text(
+            text =
+                text,
+
+            color =
+                Color.White,
+
+            fontSize =
+                11.sp,
+
+            fontWeight =
+                FontWeight.Bold,
+
+            letterSpacing =
+                0.5.sp
+        )
     }
 }
 
@@ -853,7 +1891,10 @@ private fun OverviewPill(
                     RoundedCornerShape(14.dp)
                 )
                 .background(
-                    Color.White.copy(alpha = 0.15f)
+                    Color.White.copy(
+                        alpha =
+                            0.15f
+                    )
                 )
                 .padding(
                     horizontal =
@@ -899,7 +1940,10 @@ private fun OverviewPill(
                 FontWeight.SemiBold,
 
             color =
-                Color.White.copy(alpha = 0.82f)
+                Color.White.copy(
+                    alpha =
+                        0.82f
+                )
         )
     }
 }
@@ -956,7 +2000,10 @@ private fun AgentCard(
                     RoundedCornerShape(21.dp)
                 )
                 .background(
-                    Color.White.copy(alpha = 0.96f)
+                    Color.White.copy(
+                        alpha =
+                            0.96f
+                    )
                 )
                 .padding(16.dp)
     ) {
@@ -974,12 +2021,13 @@ private fun AgentCard(
                     Alignment.CenterVertically
             ) {
 
-
                 Box(
                     modifier =
                         Modifier
                             .size(52.dp)
-                            .clip(CircleShape)
+                            .clip(
+                                CircleShape
+                            )
                             .background(
                                 Brush.linearGradient(
                                     colors =
@@ -1247,6 +2295,61 @@ private fun StatusCard(
                     Color(0xFF817A8B)
             )
         }
+    }
+}
+
+
+// =====================================================================
+// RESPONSE ERROR
+// =====================================================================
+
+private fun responseErrorMessage(
+    code: Int,
+    raw: String,
+    fallback: String
+): String {
+
+    val detail =
+        runCatching {
+
+            val obj =
+                JSONObject(raw)
+
+            obj.optString(
+                "detail"
+            )
+                .ifBlank {
+                    obj.optString(
+                        "message"
+                    )
+                }
+
+        }.getOrDefault(
+            ""
+        )
+
+
+    if (detail.isNotBlank()) {
+        return detail
+    }
+
+
+    return when (code) {
+
+        400 ->
+            "Check the entered agent details and try again."
+
+        401 ->
+            "Your session is no longer valid. Sign in again."
+
+        403 ->
+            "Only an administrator can perform this action."
+
+        409 ->
+            "An agent with these details already exists."
+
+        else ->
+            fallback
     }
 }
 
