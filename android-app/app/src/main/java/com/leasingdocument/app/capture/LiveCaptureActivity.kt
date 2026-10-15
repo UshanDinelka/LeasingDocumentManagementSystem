@@ -1,3 +1,4 @@
+
 package com.leasingdocument.app.capture
 
 import android.Manifest
@@ -43,6 +44,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.time.OffsetDateTime
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.Locale
 import kotlin.coroutines.resume
 
@@ -734,40 +737,155 @@ class LiveCaptureActivity : ComponentActivity() {
 
     @Suppress("DEPRECATION")
     private fun buildLocationLabel(location: Location): String {
-        return try {
-            val address =
-                Geocoder(this, Locale.getDefault())
-                    .getFromLocation(location.latitude, location.longitude, 1)
-                    ?.firstOrNull()
+        // First try Android's built-in Geocoder.
+        val androidLabel =
+            try {
+                if (Geocoder.isPresent()) {
+                    val address =
+                        Geocoder(this, Locale.getDefault())
+                            .getFromLocation(
+                                location.latitude,
+                                location.longitude,
+                                1
+                            )
+                            ?.firstOrNull()
 
-            val fullAddress =
-                address
-                    ?.getAddressLine(0)
-                    ?.trim()
-                    ?.takeIf { it.isNotBlank() }
+                    if (address != null) {
+                        val fullAddress =
+                            address
+                                .getAddressLine(0)
+                                ?.trim()
+                                ?.takeIf { it.isNotBlank() }
 
-            if (fullAddress != null) {
-                fullAddress
-            } else {
-                val parts =
-                    listOfNotNull(
-                        address?.featureName,
-                        address?.thoroughfare,
-                        address?.subLocality,
-                        address?.locality,
-                        address?.subAdminArea,
-                        address?.adminArea,
-                        address?.countryName
-                    )
-                        .map { it.trim() }
-                        .filter { it.isNotBlank() }
-                        .distinct()
-
-                parts.joinToString(", ")
-                    .ifBlank { "Location name unavailable" }
+                        fullAddress ?: listOfNotNull(
+                            address.featureName,
+                            address.thoroughfare,
+                            address.subThoroughfare,
+                            address.subLocality,
+                            address.locality,
+                            address.subAdminArea,
+                            address.adminArea,
+                            address.postalCode,
+                            address.countryName
+                        )
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .joinToString(", ")
+                            .takeIf { it.isNotBlank() }
+                    } else {
+                        null
+                    }
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                android.util.Log.w(
+                    "LiveCapture",
+                    "Android Geocoder could not resolve the location",
+                    e
+                )
+                null
             }
-        } catch (_: Exception) {
-            "Location name unavailable"
+
+        if (!androidLabel.isNullOrBlank()) {
+            return androidLabel
+        }
+
+        // Some emulators/devices return no result from Android Geocoder.
+        // Fall back to OpenStreetMap Nominatim reverse geocoding.
+        val osmLabel = reverseGeocodeWithOpenStreetMap(location)
+
+        if (!osmLabel.isNullOrBlank()) {
+            return osmLabel
+        }
+
+        return "Unknown location"
+    }
+
+    private fun reverseGeocodeWithOpenStreetMap(location: Location): String? {
+        var connection: HttpURLConnection? = null
+
+        return try {
+            val url =
+                URL(
+                    "https://nominatim.openstreetmap.org/reverse" +
+                            "?format=jsonv2" +
+                            "&lat=${location.latitude}" +
+                            "&lon=${location.longitude}" +
+                            "&zoom=18" +
+                            "&addressdetails=1"
+                )
+
+            connection =
+                (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 6_000
+                    readTimeout = 6_000
+                    setRequestProperty(
+                        "User-Agent",
+                        "LeasingDocumentManagementSystem/1.0 (University Student Project)"
+                    )
+                    setRequestProperty(
+                        "Accept",
+                        "application/json"
+                    )
+                    setRequestProperty(
+                        "Accept-Language",
+                        Locale.getDefault().toLanguageTag()
+                    )
+                }
+
+            if (connection.responseCode !in 200..299) {
+                android.util.Log.w(
+                    "LiveCapture",
+                    "OpenStreetMap reverse geocoding failed with HTTP ${connection.responseCode}"
+                )
+                return null
+            }
+
+            val response =
+                connection.inputStream
+                    .bufferedReader()
+                    .use { it.readText() }
+
+            val json = JSONObject(response)
+            val address = json.optJSONObject("address")
+
+            val readableParts =
+                listOfNotNull(
+                    address?.optString("house_number")?.takeIf { it.isNotBlank() },
+                    address?.optString("road")?.takeIf { it.isNotBlank() },
+                    address?.optString("neighbourhood")?.takeIf { it.isNotBlank() },
+                    address?.optString("suburb")?.takeIf { it.isNotBlank() },
+                    address?.optString("village")?.takeIf { it.isNotBlank() },
+                    address?.optString("town")?.takeIf { it.isNotBlank() },
+                    address?.optString("city")?.takeIf { it.isNotBlank() },
+                    address?.optString("county")?.takeIf { it.isNotBlank() },
+                    address?.optString("state")?.takeIf { it.isNotBlank() },
+                    address?.optString("postcode")?.takeIf { it.isNotBlank() },
+                    address?.optString("country")?.takeIf { it.isNotBlank() }
+                )
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+
+            if (readableParts.isNotEmpty()) {
+                readableParts.joinToString(", ")
+            } else {
+                json.optString("display_name")
+                    .trim()
+                    .takeIf { it.isNotBlank() }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w(
+                "LiveCapture",
+                "OpenStreetMap reverse geocoding could not resolve the location",
+                e
+            )
+            null
+        } finally {
+            connection?.disconnect()
         }
     }
 
@@ -943,6 +1061,12 @@ class LiveCaptureActivity : ComponentActivity() {
     private fun capturePhoto() {
         if (busy || jpeg != null || !resumed) return
         if (!authorized()) { finish(); return }
+
+        // Refresh the location again at the moment the document is captured.
+        if (hasLocationPermission()) {
+            refreshCaptureLocation()
+        }
+
         val camera = cameraDevice ?: return
         val session = captureSession ?: return
         val reader = imageReader ?: return
