@@ -1651,7 +1651,9 @@ private fun DocumentDetailsPage(
 
                 PremiumMetadataRow(
                     "Stored document path",
-                    document.filePath
+                    integrity?.encryptedFilePath
+                        ?.takeIf { it.isNotBlank() }
+                        ?: document.filePath
                 )
             }
         }

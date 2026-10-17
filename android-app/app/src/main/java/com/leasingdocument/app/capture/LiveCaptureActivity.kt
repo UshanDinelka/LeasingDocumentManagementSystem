@@ -1,4 +1,3 @@
-
 package com.leasingdocument.app.capture
 
 import android.Manifest
@@ -113,6 +112,12 @@ class LiveCaptureActivity : ComponentActivity() {
     private var captureLocationName: String? = null
     private var captureLatitude: Double? = null
     private var captureLongitude: Double? = null
+    private var captureLocationUpdatedAt: Long = 0L
+
+    // A location gathered while the camera screen is open can be reused briefly.
+    // This keeps the shutter responsive on physical phones while still recording
+    // a recent capture location.
+    private val locationCacheMaxAgeMs = 2 * 60 * 1000L
 
     private val requestPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
@@ -646,11 +651,18 @@ class LiveCaptureActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             try {
-                val location = withContext(Dispatchers.IO) { readBestAvailableLocation() } ?: return@launch
-                captureLatitude = location.latitude
-                captureLongitude = location.longitude
-                captureLocationName =
-                    withContext(Dispatchers.IO) { buildLocationLabel(location) }
+                // Prefetch in the background as soon as the camera screen is open.
+                // The user can frame the document while GPS/reverse-geocoding finishes.
+                val location = withContext(Dispatchers.IO) { readBestAvailableLocation() }
+                    ?: return@launch
+                val label = withContext(Dispatchers.IO) { buildLocationLabel(location) }
+
+                if (!isFinishing && !isDestroyed) {
+                    captureLatitude = location.latitude
+                    captureLongitude = location.longitude
+                    captureLocationName = label
+                    captureLocationUpdatedAt = System.currentTimeMillis()
+                }
             } catch (e: SecurityException) {
                 android.util.Log.w("LiveCapture", "Location permission unavailable", e)
             } catch (e: Exception) {
@@ -659,8 +671,19 @@ class LiveCaptureActivity : ComponentActivity() {
         }
     }
 
+    private fun hasUsableCachedLocation(): Boolean {
+        val latitude = captureLatitude
+        val longitude = captureLongitude
+        val age = System.currentTimeMillis() - captureLocationUpdatedAt
+
+        return latitude != null &&
+                longitude != null &&
+                captureLocationUpdatedAt > 0L &&
+                age in 0..locationCacheMaxAgeMs
+    }
+
     @Suppress("MissingPermission")
-    private suspend fun readBestAvailableLocation(): Location? {
+    private suspend fun readBestAvailableLocation(timeoutMs: Long = 12_000L): Location? {
         val manager = getSystemService(LOCATION_SERVICE) as LocationManager
         val fineLocationGranted =
             ContextCompat.checkSelfPermission(
@@ -703,8 +726,17 @@ class LiveCaptureActivity : ComponentActivity() {
                 enabledProviders.first()
             }
 
+        // A recent Android last-known fix is good enough for a document captured
+        // within the same camera session and avoids unnecessary shutter delay.
+        if (lastKnown != null) {
+            val ageMs = System.currentTimeMillis() - lastKnown.time
+            if (ageMs in 0..locationCacheMaxAgeMs) {
+                return lastKnown
+            }
+        }
+
         val fresh =
-            withTimeoutOrNull(5_000L) {
+            withTimeoutOrNull(timeoutMs) {
                 suspendCancellableCoroutine<Location?> { continuation ->
                     val listener =
                         object : LocationListener {
@@ -1060,41 +1092,159 @@ class LiveCaptureActivity : ComponentActivity() {
 
     private fun capturePhoto() {
         if (busy || jpeg != null || !resumed) return
-        if (!authorized()) { finish(); return }
-
-        // Refresh the location again at the moment the document is captured.
-        if (hasLocationPermission()) {
-            refreshCaptureLocation()
+        if (!authorized()) {
+            finish()
+            return
         }
 
-        val camera = cameraDevice ?: return
-        val session = captureSession ?: return
-        val reader = imageReader ?: return
-        val generation = cameraGeneration
+        if (!hasLocationPermission()) {
+            Toast.makeText(
+                this,
+                "Location permission is required for document capture.",
+                Toast.LENGTH_LONG
+            ).show()
+            requestLocationPermissionIfNeeded()
+            return
+        }
+
+        // FAST PATH:
+        // Location is prefetched when this screen opens/resumes. If that cached
+        // location is still recent, pressing the shutter captures immediately.
+        if (hasUsableCachedLocation()) {
+            busy = true
+            capture.isEnabled = false
+            performCameraCapture()
+            return
+        }
+
+        // FALLBACK:
+        // If the prefetch has not completed yet (for example the user pressed the
+        // shutter immediately after opening the screen), wait only a short time for
+        // a location fix instead of blocking for the full GPS timeout.
         busy = true
-        awaitingImage = true
         capture.isEnabled = false
+        status.text = "Getting capture location…"
+
+        lifecycleScope.launch {
+            var cameraCaptureStarted = false
+
+            try {
+                val location = withContext(Dispatchers.IO) {
+                    readBestAvailableLocation(timeoutMs = 3_000L)
+                }
+
+                if (location == null) {
+                    status.text = "Location is unavailable. Turn on Location/GPS and try again."
+                    Toast.makeText(
+                        this@LiveCaptureActivity,
+                        "Could not get the phone location. Keep Location/GPS on, wait a few seconds, and capture again.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@launch
+                }
+
+                val label = withContext(Dispatchers.IO) {
+                    buildLocationLabel(location)
+                }
+
+                captureLatitude = location.latitude
+                captureLongitude = location.longitude
+                captureLocationName = label
+                captureLocationUpdatedAt = System.currentTimeMillis()
+
+                if (!resumed || isFinishing || isDestroyed) return@launch
+
+                cameraCaptureStarted = true
+                performCameraCapture()
+            } catch (e: SecurityException) {
+                android.util.Log.w(
+                    "LiveCapture",
+                    "Location permission unavailable at capture time",
+                    e
+                )
+                status.text = "Location permission is required for document capture."
+                Toast.makeText(
+                    this@LiveCaptureActivity,
+                    "Allow location permission and try again.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                android.util.Log.e(
+                    "LiveCapture",
+                    "Unable to obtain capture location",
+                    e
+                )
+                status.text = "Could not get the capture location. Please try again."
+                Toast.makeText(
+                    this@LiveCaptureActivity,
+                    "Could not get the capture location. Turn on Location/GPS and try again.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                if (!cameraCaptureStarted && !awaitingImage && jpeg == null) {
+                    busy = false
+                    if (!isDestroyed && resumed) {
+                        capture.isEnabled = captureSession != null
+                    }
+                }
+            }
+        }
+    }
+
+    private fun performCameraCapture() {
+        val camera = cameraDevice ?: run {
+            busy = false
+            capture.isEnabled = resumed && captureSession != null
+            return
+        }
+        val session = captureSession ?: run {
+            busy = false
+            capture.isEnabled = false
+            return
+        }
+        val reader = imageReader ?: run {
+            busy = false
+            capture.isEnabled = false
+            return
+        }
+
+        val generation = cameraGeneration
+        awaitingImage = true
         captureTime = OffsetDateTime.now().toString()
         status.text = "Capturing and checking image quality…"
         mainHandler.postDelayed(captureTimeout, 10_000L)
+
         try {
             val request = camera.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE).apply {
                 addTarget(reader.surface)
                 configureAutomaticControls(this)
                 val sensor = characteristics?.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
-                // Rear camera, using Display rotation (not OrientationEventListener angles).
                 set(CaptureRequest.JPEG_ORIENTATION, (sensor - displayDegrees() + 360) % 360)
             }
-            session.capture(request.build(), object : CameraCaptureSession.CaptureCallback() {
-                override fun onCaptureFailed(session: CameraCaptureSession, request: CaptureRequest, failure: CaptureFailure) {
-                    if (generation == cameraGeneration && awaitingImage) {
-                        cameraError("Capture failed. Go back and reopen capture.")
+
+            session.capture(
+                request.build(),
+                object : CameraCaptureSession.CaptureCallback() {
+                    override fun onCaptureFailed(
+                        session: CameraCaptureSession,
+                        request: CaptureRequest,
+                        failure: CaptureFailure
+                    ) {
+                        if (generation == cameraGeneration && awaitingImage) {
+                            cameraError("Capture failed. Go back and reopen capture.")
+                        }
                     }
-                }
-                override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
-                    // ImageReader owns delivery. Keep timeout active until the JPEG arrives.
-                }
-            }, mainHandler)
+
+                    override fun onCaptureCompleted(
+                        session: CameraCaptureSession,
+                        request: CaptureRequest,
+                        result: TotalCaptureResult
+                    ) {
+                        // ImageReader owns delivery. Keep timeout active until the JPEG arrives.
+                    }
+                },
+                mainHandler
+            )
         } catch (e: Exception) {
             android.util.Log.e("LiveCapture", "Camera2 still capture failed", e)
             cameraError("Capture failed. Go back and reopen capture.")
